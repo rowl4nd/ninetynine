@@ -1218,11 +1218,131 @@ function Dashboard({ onBack }) {
   );
 }
 
+function CancelPage({ token }) {
+  const [status, setStatus] = useState("loading");
+  const [booking, setBooking] = useState(null);
+
+  useEffect(() => {
+    if (!token) { setStatus("invalid"); return; }
+    supabase.query("bookings", {
+      select: "*,service:services(name),practitioner:practitioners(name)",
+      filters: `&cancellation_token=eq.${token}&status=eq.confirmed`,
+    }).then((rows) => {
+      if (rows.length === 0) { setStatus("notfound"); return; }
+      setBooking(rows[0]);
+      setStatus("confirm");
+    }).catch(() => setStatus("error"));
+  }, [token]);
+
+  async function handleCancel() {
+    setStatus("cancelling");
+    try {
+      await supabase.update("bookings",
+        { status: "cancelled", cancelled_by: "client" },
+        `cancellation_token=eq.${token}`
+      );
+      setStatus("done");
+    } catch (e) {
+      console.error(e);
+      setStatus("error");
+    }
+  }
+
+  const dateObj = booking ? new Date(booking.booking_date + "T12:00:00") : null;
+  const formattedDate = dateObj?.toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+
+  return (
+    <div style={{ minHeight:"100vh", background:"var(--cream)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontStyle:"italic", fontWeight:300, marginBottom:8 }}>ninety nine.</div>
+      <div style={{ width:40, height:1.5, background:"var(--gold)", margin:"0 auto 48px" }}/>
+
+      {status === "loading" && (
+        <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Loading...</div>
+      )}
+
+      {status === "notfound" && (
+        <div style={{ textAlign:"center", maxWidth:400 }}>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:300, marginBottom:16 }}>Booking not found</div>
+          <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7 }}>
+            This booking may have already been cancelled, or the link may have expired.
+            DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color:"var(--gold)" }}>@ninetyninebyk</a> if you need help.
+          </p>
+        </div>
+      )}
+
+      {status === "confirm" && booking && (
+        <div style={{ maxWidth:480, width:"100%" }}>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, marginBottom:8, textAlign:"center" }}>Cancel appointment</div>
+          <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300, marginBottom:40 }}>Are you sure you want to cancel this booking?</p>
+          <div style={{ background:"var(--warm-white)", border:"1px solid var(--border)", padding:32, marginBottom:32 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid var(--border)", fontSize:15 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Treatment</span>
+              <span style={{ fontWeight:500 }}>{booking.service?.name}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid var(--border)", fontSize:15 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Practitioner</span>
+              <span style={{ fontWeight:500 }}>{booking.practitioner?.name}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid var(--border)", fontSize:15 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Date</span>
+              <span style={{ fontWeight:500 }}>{formattedDate}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", fontSize:15 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Time</span>
+              <span style={{ fontWeight:500 }}>{booking.booking_time?.slice(0,5)}</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:12 }}>
+            <a href="/" style={{ flex:1, padding:"16px", background:"none", border:"1.5px solid var(--border)", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", cursor:"pointer", textAlign:"center", textDecoration:"none", color:"var(--charcoal)" }}>
+              Keep Booking
+            </a>
+            <button onClick={handleCancel} style={{ flex:1, padding:"16px", background:"var(--red)", color:"#fff", border:"none", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", cursor:"pointer" }}>
+              Yes, Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === "cancelling" && (
+        <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Cancelling your appointment...</div>
+      )}
+
+      {status === "done" && (
+        <div style={{ textAlign:"center", maxWidth:400 }}>
+          <div style={{ width:64, height:64, borderRadius:"50%", background:"var(--border)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--warm-gray)" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, marginBottom:16 }}>Booking cancelled</div>
+          <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7, marginBottom:32 }}>
+            Your appointment has been cancelled. We hope to see you again soon.
+          </p>
+          <a href="/" style={{ display:"inline-block", padding:"16px 40px", background:"var(--charcoal)", color:"var(--cream)", textDecoration:"none", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase" }}>
+            Back to Website
+          </a>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div style={{ textAlign:"center", maxWidth:400 }}>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:300, marginBottom:16 }}>Something went wrong</div>
+          <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7 }}>
+            Please DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color:"var(--gold)" }}>@ninetyninebyk</a> and we'll sort it for you.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [scrolled, setScrolled] = useState(false);
-  const [page, setPage] = useState("site"); // "site" | "dashboard"
+  const cancelToken = new URLSearchParams(window.location.search).get("token");
+const isCancelPage = window.location.pathname === "/cancel" && cancelToken;
+const [page, setPage] = useState("site"); // "site" | "dashboard"
   const [preselectedPrac, setPreselectedPrac] = useState(null);
   const bookRef = useRef(null);
   const practitioners = usePractitioners();
@@ -1249,7 +1369,16 @@ export default function App() {
     setPreselectedPrac(prac);
     bookRef.current?.scrollIntoView({ behavior:"smooth" });
   };
-
+  
+if (isCancelPage) {
+  return (
+    <>
+      <style>{css}</style>
+      <CancelPage token={cancelToken} />
+    </>
+  );
+}
+  
   if (page === "dashboard") {
     return (
       <>
