@@ -140,8 +140,9 @@ const css = `
 
 .nn-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:24px 48px;display:flex;justify-content:space-between;align-items:center;transition:all .5s cubic-bezier(.22,1,.36,1)}
 .nn-nav.scrolled{background:rgba(250,246,241,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 1px 0 var(--border);padding:16px 48px}
-.nn-logo{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;font-style:italic;letter-spacing:1px;color:var(--charcoal);cursor:pointer;transition:color .3s}
-.nn-logo:hover{color:var(--gold)}
+.nn-logo{height:28px;cursor:pointer;transition:opacity .3s}
+.nn-logo:hover{opacity:.7}
+.nn-hero-logo{max-width:clamp(280px,50vw,520px);height:auto;opacity:0;transform:translateY(30px);animation:fadeUp 1s cubic-bezier(.22,1,.36,1) .3s forwards}
 .nn-nav-links{display:flex;gap:40px;list-style:none;align-items:center}
 .nn-nav-links li a{text-decoration:none;color:var(--charcoal);font-size:13px;font-weight:400;letter-spacing:1.8px;text-transform:uppercase;cursor:pointer;position:relative;transition:color .3s}
 .nn-nav-links li a:hover{color:var(--gold)}
@@ -283,7 +284,7 @@ const css = `
 .nn-contact-block p{font-size:14px;line-height:1.8;color:var(--warm-gray);font-weight:300}
 
 .nn-footer{padding:48px;text-align:center;background:var(--charcoal);color:rgba(250,246,241,.5);font-size:12px;font-weight:300;letter-spacing:1px}
-.nn-footer-logo{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;font-style:italic;color:var(--gold-light);margin-bottom:12px}
+.nn-footer-logo{height:32px;margin:0 auto 12px;display:block}
 
 .nn-booking-nav{display:flex;gap:14px;margin-top:44px}
 
@@ -369,7 +370,7 @@ function useAvailableSlots(pracId, date, duration) {
 function Nav({ scrolled, onNav, onBook, onDash }) {
   return (
     <nav className={`nn-nav ${scrolled ? "scrolled" : ""}`}>
-      <div className="nn-logo" onClick={() => onNav("home")}>ninety nine.</div>
+      <img src="/logo-dark.png" alt="ninety nine." className="nn-logo" onClick={() => onNav("home")} />
       <ul className="nn-nav-links">
         <li><a onClick={() => onNav("services")}>Services</a></li>
         <li><a onClick={() => onNav("team")}>Team</a></li>
@@ -388,7 +389,7 @@ function Hero({ onBook }) {
   return (
     <section className="nn-hero" id="home">
       <div className="nn-hero-accent"/>
-      <h1 className="nn-hero-name">ninety nine<span className="nn-hero-dot">.</span></h1>
+      <img src="/logo-dark.png" alt="ninety nine." className="nn-hero-logo" />
       <div className="nn-hero-services">
         <span>Hands</span><span className="dot"/><span>Toes</span><span className="dot"/><span>Brows</span><span className="dot"/><span>Lashes</span><span className="dot"/><span>Facials</span>
       </div>
@@ -901,7 +902,7 @@ export default function App() {
         </section>
       </div>
       <footer className="nn-footer">
-        <div className="nn-footer-logo">ninety nine.</div>
+        <img src="/logo-light.png" alt="ninety nine." className="nn-footer-logo" />
         99 Banks Road · West Kirby · Wirral &nbsp;·&nbsp; © {new Date().getFullYear()}
       </footer>
       {IS_DEMO && <div className="nn-demo-banner">Demo Mode — Connect your Supabase project to go live</div>}
