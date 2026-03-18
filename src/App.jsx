@@ -330,7 +330,7 @@ function usePractitioners() {
   const [data, setData] = useState([]);
   useEffect(() => {
     if (IS_DEMO) { setData(DEMO_PRACTITIONERS); return; }
-    supabase.query("practitioners", { filters: "&is_active=eq.true&order=name" }).then(setData).catch(console.error);
+    supabase.query("practitioners", { filters: "&is_active=eq.true&order=sort_order" }).then(setData).catch(console.error);
   }, []);
   return data;
 }
