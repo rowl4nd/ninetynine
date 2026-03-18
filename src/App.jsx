@@ -213,7 +213,7 @@ const css = `
 .nn-team-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gold);transform:scaleX(0);transition:transform .4s}
 .nn-team-card:hover{transform:translateY(-6px);box-shadow:0 12px 40px rgba(44,40,37,.10)}
 .nn-team-card:hover::before{transform:scaleX(1)}
-.nn-team-avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff;overflow:hidden;background-size:150%;background-position:center 20%}
+.nn-team-avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff;overflow:hidden;background-size:130%;background-position:center 35%}
 .nn-team-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;margin-bottom:6px}
 .nn-team-role{font-size:12px;color:var(--warm-gray);font-weight:300;margin-bottom:4px}
 .nn-team-spec{font-size:11px;color:var(--gold);font-weight:500;letter-spacing:1px;text-transform:uppercase}
