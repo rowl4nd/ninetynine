@@ -108,6 +108,15 @@ const DEMO_SERVICE_PRACTITIONERS = {
   "Lash or Brow Tint": ["Inke", "Lisa"],
 };
 
+// Each practitioner's available services (used to filter in booking flow)
+const PRACTITIONER_SERVICE_LIST = {
+  "Kristen": ["Gel Manicure", "BIAB Overlay", "Acrylic Full Set", "Acrylic Infill", "Nail Art (add-on)", "Gel Removal"],
+  "Inke": ["Gel Manicure", "Gel Manicure & Toes", "BIAB Overlay", "Luxury Manicure", "Gel Removal", "Lash Lift & Tint", "Brow Lamination", "Brow Wax & Tint", "Classic Lash Extensions", "Lash or Brow Tint"],
+  "Melissa": ["Gel Manicure", "BIAB Overlay", "Acrylic Full Set", "Acrylic Infill", "Nail Art (add-on)", "Gel Removal"],
+  "Holly": ["Gel Toes", "Gel Manicure & Toes", "Gel Removal"],
+  "Lisa": ["Lash Lift & Tint", "Brow Lamination", "Brow Wax & Tint", "Express Facial", "Luxury Facial", "Classic Lash Extensions", "Waxing (from)", "Lash or Brow Tint"],
+};
+
 // Treatment categories for the services page
 const TREATMENT_CATEGORIES = [
   { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures, acrylics, BIAB & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
@@ -552,21 +561,23 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
       </div>)}
 
       {step === 2 && (<div>
-        <H3>Choose a treatment</H3>
-        <div className="nn-cat-tabs">
-          {Object.keys(services).map((key) => (
-            <button key={key} className={`nn-cat-tab ${cat===key?"on":""}`} onClick={() => { setCat(key); setSvc(null); }}>{key === "nails" ? "Nails" : "Beauty"}</button>
-          ))}
-        </div>
-        {(services[cat] || []).map((s) => (
-          <div key={s.id} className={`nn-svc-item ${svc?.id===s.id?"picked":""}`} onClick={() => setSvc(s)}>
-            <div>
-              <div style={{ fontWeight:500, marginBottom:3 }}>{s.name}</div>
-              <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{s.duration} minutes</div>
+        <H3>{prac?.name}'s treatments</H3>
+        {(() => {
+          // Get services this practitioner offers
+          const pracServiceNames = PRACTITIONER_SERVICE_LIST[prac?.name] || [];
+          const allServices = [...(services.nails || []), ...(services.beauty || [])];
+          const filtered = allServices.filter((s) => pracServiceNames.includes(s.name));
+          if (filtered.length === 0) return <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>No services found for this practitioner.</div>;
+          return filtered.map((s) => (
+            <div key={s.id} className={`nn-svc-item ${svc?.id===s.id?"picked":""}`} onClick={() => setSvc(s)}>
+              <div>
+                <div style={{ fontWeight:500, marginBottom:3 }}>{s.name}</div>
+                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{s.duration} minutes</div>
+              </div>
+              <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
             </div>
-            <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
-          </div>
-        ))}
+          ));
+        })()}
         <div className="nn-booking-nav">
           <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
           <button className="nn-btn nn-btn-dark" onClick={() => setStep(3)} disabled={!svc} style={{ opacity:svc?1:.35 }}>Continue</button>
