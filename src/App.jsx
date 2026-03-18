@@ -152,8 +152,8 @@ const css = `
 .nn-nav-book:hover{background:var(--gold);color:var(--charcoal)}
 .nn-mobile-toggle{display:none;background:none;border:none;cursor:pointer;padding:8px;color:var(--charcoal)}
 
-.nn-hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:140px 40px 100px;position:relative;overflow:hidden;background:var(--cream)}
-.nn-hero::before{content:'';position:absolute;top:0;left:0;width:35%;height:100%;background:url('/hero-bg.png') left center/cover no-repeat;pointer-events:none;mask-image:linear-gradient(to right,rgba(0,0,0,.35) 0%,rgba(0,0,0,.2) 40%,transparent 100%);-webkit-mask-image:linear-gradient(to right,rgba(0,0,0,.25) 0%,rgba(0,0,0,.2) 40%,transparent 100%)}
+.nn-hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:140px 40px 100px;position:relative;overflow:hidden;background:linear-gradient(170deg,var(--cream) 0%,var(--warm-white) 40%,var(--blush) 100%)}
+.nn-hero::before{content:'';position:absolute;top:-100px;right:-100px;width:500px;height:500px;background:radial-gradient(circle,rgba(201,169,110,.12) 0%,transparent 70%);pointer-events:none}
 .nn-hero-accent{width:48px;height:1.5px;background:var(--gold);margin:0 auto 28px;opacity:0;animation:fadeIn .8s ease .2s forwards}
 .nn-hero-name{font-family:'Cormorant Garamond',serif;font-size:clamp(56px,10vw,110px);font-weight:300;font-style:italic;line-height:1;letter-spacing:2px;color:var(--charcoal);opacity:0;transform:translateY(30px);animation:fadeUp 1s cubic-bezier(.22,1,.36,1) .3s forwards}
 .nn-hero-dot{color:var(--gold)}
