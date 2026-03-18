@@ -89,24 +89,33 @@ const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:
 
 // Which practitioners offer which services (for demo mode)
 const DEMO_SERVICE_PRACTITIONERS = {
-  "Gel Manicure": ["Inke", "Holly", "Kristen", "Melissa"],
-  "Gel Toes": ["Holly", "Inke"],
+  "Gel Manicure": ["Kristen", "Inke", "Melissa"],
+  "Gel Toes": ["Holly"],
   "Gel Manicure & Toes": ["Holly", "Inke"],
-  "BIAB Overlay": ["Inke", "Kristen", "Melissa"],
+  "BIAB Overlay": ["Kristen", "Inke", "Melissa"],
   "Acrylic Full Set": ["Kristen", "Melissa"],
   "Acrylic Infill": ["Kristen", "Melissa"],
   "Nail Art (add-on)": ["Kristen", "Melissa"],
-  "Gel Removal": ["Inke", "Holly", "Kristen", "Melissa"],
+  "Gel Removal": ["Kristen", "Inke", "Holly", "Melissa"],
   "Luxury Manicure": ["Inke"],
-  "Lash Lift & Tint": ["Lisa"],
-  "Brow Lamination": ["Inke", "Lisa"],
-  "Brow Wax & Tint": ["Inke", "Lisa"],
+  "Lash Lift & Tint": ["Inke", "Lisa"],
+  "Brow Lamination": ["Lisa"],
+  "Brow Wax & Tint": ["Lisa"],
   "Express Facial": ["Lisa"],
   "Luxury Facial": ["Lisa"],
-  "Classic Lash Extensions": ["Lisa"],
-  "Waxing (from)": ["Lisa", "Inke"],
-  "Lash or Brow Tint": ["Lisa", "Inke"],
+  "Classic Lash Extensions": ["Inke", "Lisa"],
+  "Waxing (from)": ["Lisa"],
+  "Lash or Brow Tint": ["Inke", "Lisa"],
 };
+
+// Treatment categories for the services page
+const TREATMENT_CATEGORIES = [
+  { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures, acrylics, BIAB & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
+  { id: "toes", title: "Toes", icon: "✦", description: "Gel toes & pedicures", practitioners: ["Holly"] },
+  { id: "brows", title: "Brows", icon: "✦", description: "Lamination, wax & tint", practitioners: ["Lisa"] },
+  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash lifts, tints & extensions", practitioners: ["Inke", "Lisa"] },
+  { id: "facials", title: "Facials", icon: "✦", description: "Express & luxury facials", practitioners: ["Lisa"] },
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
@@ -173,6 +182,21 @@ const css = `
 .nn-service-pracs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .nn-prac-tag{padding:4px 12px;font-size:11px;font-weight:500;letter-spacing:.5px;color:var(--gold);border:1px solid var(--gold-light);cursor:pointer;transition:all .25s;background:none;font-family:'Outfit',sans-serif}
 .nn-prac-tag:hover{background:var(--gold);color:var(--charcoal);border-color:var(--gold)}
+
+.nn-treat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;margin-top:60px}
+.nn-treat-card{padding:40px 28px;background:var(--warm-white);border:1px solid var(--border);transition:all .5s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
+.nn-treat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gold);transform:scaleX(0);transition:transform .4s}
+.nn-treat-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(44,40,37,.08)}
+.nn-treat-card:hover::before{transform:scaleX(1)}
+.nn-treat-icon{font-size:14px;color:var(--gold);margin-bottom:16px;letter-spacing:4px}
+.nn-treat-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;margin-bottom:8px}
+.nn-treat-desc{font-size:13px;color:var(--warm-gray);font-weight:300;line-height:1.6;margin-bottom:20px}
+.nn-treat-pracs{display:flex;flex-direction:column;gap:8px}
+.nn-treat-prac-btn{display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:1.5px solid var(--border);cursor:pointer;transition:all .3s;font-family:'Outfit',sans-serif;font-size:13px;font-weight:400;color:var(--charcoal);text-align:left;width:100%}
+.nn-treat-prac-btn:hover{border-color:var(--gold);background:var(--cream)}
+.nn-treat-prac-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:13px;font-style:italic;color:#fff;flex-shrink:0}
+.nn-treat-prac-arrow{margin-left:auto;color:var(--gold);font-size:14px;opacity:0;transition:opacity .3s}
+.nn-treat-prac-btn:hover .nn-treat-prac-arrow{opacity:1}
 
 .nn-team-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-top:60px}
 .nn-team-card{padding:44px 20px 36px;text-align:center;background:var(--warm-white);border:1px solid var(--border);transition:all .5s cubic-bezier(.22,1,.36,1);cursor:default;position:relative;overflow:hidden}
@@ -357,7 +381,7 @@ function Hero({ onBook }) {
       <div className="nn-hero-accent"/>
       <h1 className="nn-hero-name">ninety nine<span className="nn-hero-dot">.</span></h1>
       <div className="nn-hero-services">
-        <span>Manicures</span><span className="dot"/><span>Facials</span><span className="dot"/><span>Brows</span><span className="dot"/><span>Lash Lifts</span><span className="dot"/><span>Gel Toes</span>
+        <span>Hands</span><span className="dot"/><span>Toes</span><span className="dot"/><span>Brows</span><span className="dot"/><span>Lashes</span><span className="dot"/><span>Facials</span>
       </div>
       <p className="nn-hero-address">99 Banks Road · West Kirby</p>
       <div className="nn-hero-cta">
@@ -376,44 +400,31 @@ function Divider() {
 }
 
 function ServicesList({ services, practitioners, onBookWith }) {
-  const labels = { nails: "Nails", beauty: "Beauty" };
-  // Get practitioner names for a service (demo mode uses the mapping, live would use practitioner_services table)
-  const getPracs = (serviceName) => {
-    if (IS_DEMO) return DEMO_SERVICE_PRACTITIONERS[serviceName] || [];
-    // In live mode, this would come from the practitioner_services join
-    return practitioners.map((p) => p.name);
-  };
   const findPrac = (name) => practitioners.find((p) => p.name === name);
 
   return (
     <section className="nn-section" id="services">
       <div className="nn-section-label">Our Services</div>
       <h2 className="nn-section-title">Treatments</h2>
-      <p className="nn-section-desc">From gel manicures to luxury facials, every treatment is delivered with care in our warm, welcoming space on Banks Road. Tap a name to book directly.</p>
-      <div className="nn-services-grid">
-        {Object.entries(services).map(([key, items]) => (
-          <div key={key}>
-            <h3 className="nn-service-cat-title">{labels[key] || key}</h3>
-            {items.map((s) => {
-              const pracNames = getPracs(s.name);
-              return (
-                <div className="nn-service-row" key={s.id}>
-                  <div>
-                    <div className="nn-service-name">{s.name}</div>
-                    <div className="nn-service-dur">{s.duration} min</div>
-                    {pracNames.length > 0 && (
-                      <div className="nn-service-pracs">
-                        {pracNames.map((name) => (
-                          <button key={name} className="nn-prac-tag" onClick={() => { const p = findPrac(name); if (p) onBookWith(p); }}>
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+      <p className="nn-section-desc">From gel manicures to luxury facials, every treatment is delivered with care in our warm, welcoming space on Banks Road. Tap a name to book.</p>
+      <div className="nn-treat-grid">
+        {TREATMENT_CATEGORIES.map((cat) => (
+          <div className="nn-treat-card" key={cat.id}>
+            <div className="nn-treat-icon">{cat.icon}</div>
+            <div className="nn-treat-title">{cat.title}</div>
+            <div className="nn-treat-desc">{cat.description}</div>
+            <div className="nn-treat-pracs">
+              {cat.practitioners.map((name) => {
+                const p = findPrac(name);
+                return (
+                  <button key={name} className="nn-treat-prac-btn" onClick={() => { if (p) onBookWith(p); }}>
+                    <div className="nn-treat-prac-dot" style={{ background: p?.color || "var(--gold)" }}>{name[0]}</div>
+                    <span>{name}</span>
+                    <span className="nn-treat-prac-arrow">→</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
@@ -871,4 +882,5 @@ export default function App() {
       {IS_DEMO && <div className="nn-demo-banner">Demo Mode — Connect your Supabase project to go live</div>}
     </>
   );
+}
 }
