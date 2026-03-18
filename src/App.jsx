@@ -674,7 +674,7 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
   );
 }
 
-// ─── Practitioner Dashboard ──────────────────────────────────────────────────
+// ─── Practitioner Dashboard ──
 
 function Dashboard({ onBack }) {
   const [auth, setAuth] = useState(null);
@@ -682,9 +682,23 @@ function Dashboard({ onBack }) {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [loginErr, setLoginErr] = useState("");
-  const [tab, setTab] = useState("upcoming");
+  const [tab, setTab] = useState("bookings");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // ── Services state ──
+  const [allServices, setAllServices] = useState([]);
+  const [myServices, setMyServices] = useState([]); // practitioner_services rows
+  const [servicesSaving, setServicesSaving] = useState({});
+
+  // ── Schedule state ──
+  const [availability, setAvailability] = useState([]); // 7 rows, one per day
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [newBlock, setNewBlock] = useState("");
+  const [blockSaving, setBlockSaving] = useState(false);
+
+  const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -702,14 +716,15 @@ function Dashboard({ onBack }) {
         token: session.access_token,
       });
       if (pracs.length > 0) setPrac(pracs[0]);
-      else setLoginErr("No practitioner account linked to this email. Please contact the salon owner.");
+      else setLoginErr("No practitioner account linked to this email. Please contact Kristen.");
     } catch (e) {
       setLoginErr(e.message);
     }
   }
 
+  // ── Load bookings ──
   useEffect(() => {
-    if (!auth || !prac) return;
+    if (!auth || !prac || tab !== "bookings") return;
     if (IS_DEMO) {
       setBookings([
         { id: "d1", client_name: "Sarah J.", client_phone: "07700 123456", booking_date: "2026-03-18", booking_time: "10:00:00", duration: 45, price: 30, status: "confirmed", service: { name: "Gel Manicure" } },
@@ -721,25 +736,188 @@ function Dashboard({ onBack }) {
     }
     setLoading(true);
     const today = new Date().toISOString().split("T")[0];
-    const filter = tab === "upcoming"
-      ? `&practitioner_id=eq.${prac.id}&booking_date=gte.${today}&status=eq.confirmed&order=booking_date,booking_time`
-      : `&practitioner_id=eq.${prac.id}&order=booking_date.desc,booking_time.desc&limit=50`;
     supabase.query("bookings", {
       select: "*,service:services(name)",
-      filters: filter,
+      filters: `&practitioner_id=eq.${prac.id}&booking_date=gte.${today}&status=eq.confirmed&order=booking_date,booking_time`,
       token: auth.access_token,
     }).then(setBookings).catch(console.error).finally(() => setLoading(false));
   }, [auth, prac, tab]);
 
+  // ── Load services ──
+  useEffect(() => {
+    if (!auth || !prac || tab !== "services") return;
+    if (IS_DEMO) {
+      const all = [...DEMO_SERVICES.nails, ...DEMO_SERVICES.beauty];
+      setAllServices(all);
+      const myNames = PRACTITIONER_SERVICE_LIST[prac.name] || [];
+      setMyServices(all.filter(s => myNames.includes(s.name)).map(s => ({ service_id: s.id, custom_price: null })));
+      return;
+    }
+    Promise.all([
+      supabase.query("services", { filters: "&is_active=eq.true&order=category,name" }),
+      supabase.query("practitioner_services", {
+        filters: `&practitioner_id=eq.${prac.id}`,
+        token: auth.access_token,
+      }),
+    ]).then(([svcs, myS]) => {
+      setAllServices(svcs);
+      setMyServices(myS);
+    }).catch(console.error);
+  }, [auth, prac, tab]);
+
+  // ── Load schedule ──
+  useEffect(() => {
+    if (!auth || !prac || tab !== "schedule") return;
+    if (IS_DEMO) {
+      setAvailability(DAY_NAMES.map((_, i) => ({
+        day_of_week: i,
+        start_time: "09:00",
+        end_time: i < 5 ? "17:30" : "17:00",
+        is_available: i < 6,
+      })));
+      setBlockedDates([]);
+      return;
+    }
+    Promise.all([
+      supabase.query("availability", {
+        filters: `&practitioner_id=eq.${prac.id}&order=day_of_week`,
+        token: auth.access_token,
+      }),
+      supabase.query("blocked_dates", {
+        filters: `&practitioner_id=eq.${prac.id}&blocked_date=gte.${new Date().toISOString().split("T")[0]}&order=blocked_date`,
+        token: auth.access_token,
+      }),
+    ]).then(([avail, blocked]) => {
+      // Fill in any missing days
+      const filled = DAY_NAMES.map((_, i) => {
+        const found = avail.find(a => a.day_of_week === i);
+        return found || { day_of_week: i, start_time: "09:00", end_time: "17:30", is_available: false };
+      });
+      setAvailability(filled);
+      setBlockedDates(blocked);
+    }).catch(console.error);
+  }, [auth, prac, tab]);
+
+  // ── Bookings actions ──
   async function updateStatus(bookingId, status) {
     if (IS_DEMO) {
-      setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status } : b));
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
       return;
     }
     await supabase.update("bookings", { status }, `id=eq.${bookingId}`, auth.access_token);
-    setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status } : b));
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
   }
 
+  // ── Service toggle ──
+  function isMyService(serviceId) {
+    return myServices.some(s => s.service_id === serviceId);
+  }
+
+  function getCustomPrice(serviceId) {
+    const row = myServices.find(s => s.service_id === serviceId);
+    return row?.custom_price ?? null;
+  }
+
+  async function toggleService(svc) {
+    const on = isMyService(svc.id);
+    setServicesSaving(prev => ({ ...prev, [svc.id]: true }));
+    if (IS_DEMO) {
+      if (on) setMyServices(prev => prev.filter(s => s.service_id !== svc.id));
+      else setMyServices(prev => [...prev, { service_id: svc.id, custom_price: null }]);
+      setServicesSaving(prev => ({ ...prev, [svc.id]: false }));
+      return;
+    }
+    try {
+      if (on) {
+        await fetch(`${SUPABASE_URL}/rest/v1/practitioner_services?practitioner_id=eq.${prac.id}&service_id=eq.${svc.id}`, {
+          method: "DELETE", headers: supabase.headers(auth.access_token),
+        });
+        setMyServices(prev => prev.filter(s => s.service_id !== svc.id));
+      } else {
+        const res = await supabase.insert("practitioner_services", {
+          practitioner_id: prac.id, service_id: svc.id,
+        }, auth.access_token);
+        setMyServices(prev => [...prev, res[0]]);
+      }
+    } catch (e) { console.error(e); }
+    setServicesSaving(prev => ({ ...prev, [svc.id]: false }));
+  }
+
+  async function savePrice(svc, price) {
+    if (IS_DEMO) {
+      setMyServices(prev => prev.map(s => s.service_id === svc.id ? { ...s, custom_price: price || null } : s));
+      return;
+    }
+    try {
+      await supabase.update("practitioner_services",
+        { custom_price: price || null },
+        `practitioner_id=eq.${prac.id}&service_id=eq.${svc.id}`,
+        auth.access_token
+      );
+      setMyServices(prev => prev.map(s => s.service_id === svc.id ? { ...s, custom_price: price || null } : s));
+    } catch (e) { console.error(e); }
+  }
+
+  // ── Schedule actions ──
+  async function saveAvailability(day) {
+    const row = availability[day];
+    setSchedSaving(true);
+    if (IS_DEMO) { setSchedSaving(false); return; }
+    try {
+      // Upsert availability row
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?practitioner_id=eq.${prac.id}&day_of_week=eq.${day}`, {
+        method: "PATCH",
+        headers: { ...supabase.headers(auth.access_token), Prefer: "return=representation" },
+        body: JSON.stringify({ is_available: row.is_available, start_time: row.start_time, end_time: row.end_time }),
+      });
+      if (!res.ok) {
+        // Row might not exist yet — insert it
+        await supabase.insert("availability", {
+          practitioner_id: prac.id,
+          day_of_week: day,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          is_available: row.is_available,
+        }, auth.access_token);
+      }
+    } catch (e) { console.error(e); }
+    setSchedSaving(false);
+  }
+
+  function updateAvail(day, field, value) {
+    setAvailability(prev => prev.map((r, i) => i === day ? { ...r, [field]: value } : r));
+  }
+
+  async function addBlockedDate() {
+    if (!newBlock) return;
+    setBlockSaving(true);
+    if (IS_DEMO) {
+      setBlockedDates(prev => [...prev, { id: Date.now(), blocked_date: newBlock }]);
+      setNewBlock("");
+      setBlockSaving(false);
+      return;
+    }
+    try {
+      const res = await supabase.insert("blocked_dates", {
+        practitioner_id: prac.id, blocked_date: newBlock,
+      }, auth.access_token);
+      setBlockedDates(prev => [...prev, res[0]]);
+      setNewBlock("");
+    } catch (e) { console.error(e); }
+    setBlockSaving(false);
+  }
+
+  async function removeBlockedDate(id) {
+    if (IS_DEMO) { setBlockedDates(prev => prev.filter(b => b.id !== id)); return; }
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/blocked_dates?id=eq.${id}`, {
+        method: "DELETE", headers: supabase.headers(auth.access_token),
+      });
+      setBlockedDates(prev => prev.filter(b => b.id !== id));
+    } catch (e) { console.error(e); }
+  }
+
+  // ── Login screen ──
   if (!auth) {
     return (
       <div className="nn-login">
@@ -753,14 +931,17 @@ function Dashboard({ onBack }) {
             <button className="nn-btn nn-btn-dark" onClick={handleLogin} style={{ width:"100%", marginTop:8 }}>Sign In</button>
             <button className="nn-btn-back" onClick={onBack} style={{ width:"100%", textAlign:"center" }}>← Back to Website</button>
           </div>
-          {IS_DEMO && <p style={{ marginTop:16, fontSize:12, color:"var(--warm-gray)", textAlign:"center" }}>Demo mode — click Sign In to preview the dashboard</p>}
+          {IS_DEMO && <p style={{ marginTop:16, fontSize:12, color:"var(--warm-gray)", textAlign:"center" }}>Demo mode — click Sign In to preview</p>}
         </div>
       </div>
     );
   }
 
-  const upcoming = bookings.filter((b) => b.status === "confirmed");
-  const past = bookings.filter((b) => b.status !== "confirmed");
+  const upcoming = bookings.filter(b => b.status === "confirmed");
+
+  // Group all services by category for the services tab
+  const nailServices = allServices.filter(s => s.category === "nails");
+  const beautyServices = allServices.filter(s => s.category === "beauty");
 
   return (
     <div className="nn-dash">
@@ -775,25 +956,30 @@ function Dashboard({ onBack }) {
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="nn-dash-tabs">
-        <button className={`nn-dash-tab ${tab === "upcoming" ? "on" : ""}`} onClick={() => setTab("upcoming")}>
-          Upcoming ({upcoming.length})
+        <button className={`nn-dash-tab ${tab === "bookings" ? "on" : ""}`} onClick={() => setTab("bookings")}>
+          Bookings {tab === "bookings" && upcoming.length > 0 ? `(${upcoming.length})` : ""}
         </button>
-        <button className={`nn-dash-tab ${tab === "all" ? "on" : ""}`} onClick={() => setTab("all")}>
-          All Bookings
+        <button className={`nn-dash-tab ${tab === "services" ? "on" : ""}`} onClick={() => setTab("services")}>
+          My Services
+        </button>
+        <button className={`nn-dash-tab ${tab === "schedule" ? "on" : ""}`} onClick={() => setTab("schedule")}>
+          My Schedule
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
-      ) : (
-        <div>
-          {(tab === "upcoming" ? upcoming : bookings).length === 0 ? (
-            <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>
-              {tab === "upcoming" ? "No upcoming bookings — enjoy the break!" : "No bookings yet."}
-            </div>
-          ) : (
-            (tab === "upcoming" ? upcoming : bookings).map((b) => (
+      {/* ── BOOKINGS TAB ── */}
+      {tab === "bookings" && (
+        loading ? (
+          <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
+        ) : upcoming.length === 0 ? (
+          <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>
+            No upcoming bookings — enjoy the break!
+          </div>
+        ) : (
+          <div>
+            {upcoming.map(b => (
               <div className="nn-booking-card" key={b.id}>
                 <div>
                   <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
@@ -805,16 +991,189 @@ function Dashboard({ onBack }) {
                   </div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                  <span className={`nn-booking-status ${b.status}`}>{b.status}</span>
-                  {b.status === "confirmed" && (
-                    <div style={{ display:"flex", gap:6 }}>
-                      <button onClick={() => updateStatus(b.id, "completed")}
-                        style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
-                      <button onClick={() => updateStatus(b.id, "cancelled")}
-                        style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
-                    </div>
-                  )}
+                  <span className="nn-booking-status confirmed">confirmed</span>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={() => updateStatus(b.id, "completed")}
+                      style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
+                    <button onClick={() => updateStatus(b.id, "cancelled")}
+                      style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
+                  </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── SERVICES TAB ── */}
+      {tab === "services" && (
+        <div style={{ maxWidth:680 }}>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
+            Toggle your services on or off — only active services will show in the booking flow. Set your own price for each treatment.
+          </p>
+
+          {[["Nails", nailServices], ["Beauty", beautyServices]].map(([catLabel, svcs]) => (
+            svcs.length > 0 && (
+              <div key={catLabel} style={{ marginBottom:40 }}>
+                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:16, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+                  <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>
+                  {catLabel}
+                </div>
+                {svcs.map(svc => {
+                  const active = isMyService(svc.id);
+                  const customPrice = getCustomPrice(svc.id);
+                  const saving = servicesSaving[svc.id];
+                  return (
+                    <div key={svc.id} style={{
+                      display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
+                      background: active ? "var(--warm-white)" : "transparent",
+                      border: `1.5px solid ${active ? "var(--border)" : "var(--border)"}`,
+                      marginBottom:8, opacity: saving ? 0.5 : 1, transition:"all .2s"
+                    }}>
+                      {/* Toggle */}
+                      <button onClick={() => toggleService(svc)} style={{
+                        width:44, height:24, borderRadius:12, border:"none", cursor:"pointer",
+                        background: active ? "var(--charcoal)" : "var(--border)",
+                        position:"relative", transition:"background .2s", flexShrink:0
+                      }}>
+                        <span style={{
+                          position:"absolute", top:3, left: active ? 23 : 3,
+                          width:18, height:18, borderRadius:"50%", background:"#fff",
+                          transition:"left .2s", display:"block"
+                        }}/>
+                      </button>
+
+                      {/* Name + duration */}
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:500, fontSize:14, color: active ? "var(--charcoal)" : "var(--warm-gray)" }}>{svc.name}</div>
+                        <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{svc.duration} min</div>
+                      </div>
+
+                      {/* Price input — only show when active */}
+                      {active && (
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:14, color:"var(--warm-gray)" }}>£</span>
+                          <input
+                            type="number"
+                            defaultValue={customPrice ?? svc.price}
+                            onBlur={(e) => savePrice(svc, parseFloat(e.target.value))}
+                            style={{
+                              width:72, padding:"8px 10px", border:"1.5px solid var(--border)",
+                              background:"var(--cream)", fontFamily:"'Outfit',sans-serif",
+                              fontSize:14, fontWeight:500, color:"var(--gold)", outline:"none",
+                              textAlign:"center"
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Default price when off */}
+                      {!active && (
+                        <div style={{ fontSize:14, color:"var(--border)", fontWeight:300 }}>£{svc.price}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ))}
+        </div>
+      )}
+
+      {/* ── SCHEDULE TAB ── */}
+      {tab === "schedule" && (
+        <div style={{ maxWidth:680 }}>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
+            Set your working days and hours. Block out specific dates for holidays or days off — these won't show as available in the booking system.
+          </p>
+
+          {/* Weekly schedule */}
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:20, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>
+            Weekly Hours
+          </div>
+
+          {availability.map((row, i) => (
+            <div key={i} style={{
+              display:"flex", alignItems:"center", gap:16, padding:"14px 20px",
+              background: row.is_available ? "var(--warm-white)" : "transparent",
+              border:"1.5px solid var(--border)", marginBottom:8,
+              opacity: row.is_available ? 1 : 0.5, transition:"all .2s"
+            }}>
+              {/* Day toggle */}
+              <button onClick={() => {
+                updateAvail(i, "is_available", !row.is_available);
+                setTimeout(() => saveAvailability(i), 100);
+              }} style={{
+                width:44, height:24, borderRadius:12, border:"none", cursor:"pointer",
+                background: row.is_available ? "var(--charcoal)" : "var(--border)",
+                position:"relative", transition:"background .2s", flexShrink:0
+              }}>
+                <span style={{
+                  position:"absolute", top:3, left: row.is_available ? 23 : 3,
+                  width:18, height:18, borderRadius:"50%", background:"#fff",
+                  transition:"left .2s", display:"block"
+                }}/>
+              </button>
+
+              <div style={{ width:96, fontSize:14, fontWeight: row.is_available ? 500 : 300, color: row.is_available ? "var(--charcoal)" : "var(--warm-gray)" }}>
+                {DAY_NAMES[i]}
+              </div>
+
+              {row.is_available && (
+                <>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:12, color:"var(--warm-gray)" }}>From</span>
+                    <input type="time" value={row.start_time} onChange={(e) => updateAvail(i, "start_time", e.target.value)}
+                      onBlur={() => saveAvailability(i)}
+                      style={{ padding:"8px 10px", border:"1.5px solid var(--border)", background:"var(--cream)", fontFamily:"'Outfit',sans-serif", fontSize:13, outline:"none" }}
+                    />
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:12, color:"var(--warm-gray)" }}>Until</span>
+                    <input type="time" value={row.end_time} onChange={(e) => updateAvail(i, "end_time", e.target.value)}
+                      onBlur={() => saveAvailability(i)}
+                      style={{ padding:"8px 10px", border:"1.5px solid var(--border)", background:"var(--cream)", fontFamily:"'Outfit',sans-serif", fontSize:13, outline:"none" }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {!row.is_available && (
+                <span style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Not working</span>
+              )}
+            </div>
+          ))}
+
+          {/* Blocked dates */}
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>
+            Blocked Dates
+          </div>
+
+          <div style={{ display:"flex", gap:12, marginBottom:24 }}>
+            <input type="date" value={newBlock} onChange={(e) => setNewBlock(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              style={{ flex:1, padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}
+            />
+            <button onClick={addBlockedDate} disabled={!newBlock || blockSaving}
+              style={{ padding:"12px 28px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", opacity: newBlock && !blockSaving ? 1 : 0.35 }}>
+              Block
+            </button>
+          </div>
+
+          {blockedDates.length === 0 ? (
+            <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, padding:"20px 0" }}>No dates blocked.</div>
+          ) : (
+            blockedDates.map(b => (
+              <div key={b.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8 }}>
+                <div style={{ fontSize:14, fontWeight:500 }}>
+                  {new Date(b.blocked_date + "T12:00:00").toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" })}
+                </div>
+                <button onClick={() => removeBlockedDate(b.id)}
+                  style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>
+                  Remove
+                </button>
               </div>
             ))
           )}
