@@ -428,11 +428,6 @@ function ServicesList({ services, practitioners, onBookWith }) {
                 const p = findPrac(name);
                 return (
                   <button key={name} className="nn-treat-prac-btn" onClick={() => { if (p) onBookWith(p); }}>
-                    {p?.photo ? (
-                      <div className="nn-treat-prac-dot" style={{ backgroundImage:`url(${p.photo})` }} />
-                    ) : (
-                      <div className="nn-treat-prac-dot" style={{ background: p?.color || "var(--gold)" }}>{name[0]}</div>
-                    )}
                     <span>{name}</span>
                     <span className="nn-treat-prac-arrow">→</span>
                   </button>
