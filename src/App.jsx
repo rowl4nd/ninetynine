@@ -368,20 +368,60 @@ function useAvailableSlots(pracId, date, duration) {
 // ─── Public Components ───────────────────────────────────────────────────────
 
 function Nav({ scrolled, onNav, onBook, onDash }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
-    <nav className={`nn-nav ${scrolled ? "scrolled" : ""}`}>
-      <img src="/logo-dark.png" alt="ninety nine." className="nn-logo" onClick={() => onNav("home")} />
-      <ul className="nn-nav-links">
-        <li><a onClick={() => onNav("services")}>Services</a></li>
-        <li><a onClick={() => onNav("team")}>Team</a></li>
-        <li><a onClick={() => onNav("contact")}>Contact</a></li>
-        <li><a onClick={onDash} style={{ opacity: 0.5, fontSize: 11 }}>Staff Login</a></li>
-        <li><button className="nn-nav-book" onClick={onBook}>Book Now</button></li>
-      </ul>
-      <button className="nn-mobile-toggle" onClick={onBook}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-    </nav>
+    <>
+      <nav className={`nn-nav ${scrolled ? "scrolled" : ""}`}>
+        <img src="/logo-dark.png" alt="ninety nine." className="nn-logo" onClick={() => onNav("home")} />
+        <ul className="nn-nav-links">
+          <li><a onClick={() => onNav("services")}>Services</a></li>
+          <li><a onClick={() => onNav("team")}>Team</a></li>
+          <li><a onClick={() => onNav("contact")}>Contact</a></li>
+          <li><a onClick={onDash} style={{ opacity: 0.5, fontSize: 11 }}>Staff Login</a></li>
+          <li><button className="nn-nav-book" onClick={onBook}>Book Now</button></li>
+        </ul>
+        <button className="nn-mobile-toggle" onClick={() => setMobileOpen(o => !o)}>
+          {mobileOpen
+            ? <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          }
+        </button>
+      </nav>
+
+      {/* Mobile menu overlay */}
+      {mobileOpen && (
+        <div style={{
+          position:"fixed", top:0, left:0, right:0, bottom:0, zIndex:99,
+          background:"var(--cream)", display:"flex", flexDirection:"column",
+          justifyContent:"center", alignItems:"center", gap:8
+        }}>
+          {[
+            { label:"Services", action:() => { onNav("services"); setMobileOpen(false); }},
+            { label:"Team", action:() => { onNav("team"); setMobileOpen(false); }},
+            { label:"Contact", action:() => { onNav("contact"); setMobileOpen(false); }},
+          ].map(item => (
+            <button key={item.label} onClick={item.action} style={{
+              background:"none", border:"none", cursor:"pointer",
+              fontFamily:"'Cormorant Garamond',serif", fontSize:42, fontWeight:300,
+              fontStyle:"italic", color:"var(--charcoal)", padding:"12px 0",
+              letterSpacing:"1px", transition:"color .2s"
+            }}>{item.label}</button>
+          ))}
+          <div style={{ width:40, height:1, background:"var(--border)", margin:"16px 0" }}/>
+          <button onClick={() => { onBook(); setMobileOpen(false); }} style={{
+            padding:"16px 48px", background:"var(--charcoal)", color:"var(--cream)",
+            border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif",
+            fontSize:12, fontWeight:500, letterSpacing:"2.5px", textTransform:"uppercase"
+          }}>Book Now</button>
+          <button onClick={() => { onDash(); setMobileOpen(false); }} style={{
+            background:"none", border:"none", cursor:"pointer",
+            fontSize:12, color:"var(--warm-gray)", letterSpacing:"1.5px",
+            textTransform:"uppercase", marginTop:8, fontFamily:"'Outfit',sans-serif"
+          }}>Staff Login</button>
+        </div>
+      )}
+    </>
   );
 }
 
