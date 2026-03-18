@@ -454,7 +454,7 @@ function TeamSection({ practitioners }) {
       <p className="nn-section-desc">Each of our talented practitioners is self-employed, bringing their own unique expertise and loyal clientele to ninety nine.</p>
       <div className="nn-team-grid">
         {practitioners.map((p) => (
-          <div className="nn-team-card" key={p.id}>
+          <div className="nn-team-card" key={p.id} style={p.name === "Kristen" ? {border:"2px solid var(--gold)"} : {}}>
             {p.photo ? (
               <div className="nn-team-avatar" style={{ backgroundImage: `url(${p.photo})` }} />
             ) : (
