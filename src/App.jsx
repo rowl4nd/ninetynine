@@ -54,11 +54,11 @@ const supabase = {
 const IS_DEMO = SUPABASE_URL === "YOUR_SUPABASE_URL";
 
 const DEMO_PRACTITIONERS = [
-  { id: "1", name: "Lisa", role: "Beauty Therapist", specialty: "Facials & Skin", color: "#C9A96E" },
-  { id: "2", name: "Inke", role: "Nail & Brow Technician", specialty: "Brows & Nails", color: "#B8A08A" },
-  { id: "3", name: "Holly", role: "Nail Technician", specialty: "Gel Toes", color: "#C4A882" },
-  { id: "4", name: "Kristen", role: "Nail Technician", specialty: "Nail Art", color: "#A89080" },
-  { id: "5", name: "Melissa", role: "Nail Technician", specialty: "Nail Art", color: "#BCA68E" },
+  { id: "1", name: "Lisa", role: "Facial, Lash Lift & Brow Artist", specialty: "Facials & Skin", color: "#C9A96E", photo: "/team/Lisa.jpg", instagram: "@elisehouseuk" },
+  { id: "2", name: "Inke", role: "Manicurist & Lash Lift Technician", specialty: "Nails & Lashes", color: "#B8A08A", photo: "/team/Inke.jpg", instagram: "@byinke_x" },
+  { id: "3", name: "Holly", role: "Gel Toes & Toenail Reconstruction", specialty: "Gel Toes", color: "#C4A882", photo: "/team/Holly.jpg", instagram: "@painted__byholly" },
+  { id: "4", name: "Kristen", role: "Salon Owner & Senior Manicurist", specialty: "Gel & Nail Art", color: "#A89080", photo: "/team/Kristen.jpg", instagram: "@nailsbykristen_x" },
+  { id: "5", name: "Melissa", role: "Nail Technician", specialty: "Nail Art", color: "#BCA68E", photo: null, instagram: null },
 ];
 
 const DEMO_SERVICES = {
@@ -203,7 +203,7 @@ const css = `
 .nn-treat-pracs{display:flex;flex-direction:column;gap:8px}
 .nn-treat-prac-btn{display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:1.5px solid var(--border);cursor:pointer;transition:all .3s;font-family:'Outfit',sans-serif;font-size:13px;font-weight:400;color:var(--charcoal);text-align:left;width:100%}
 .nn-treat-prac-btn:hover{border-color:var(--gold);background:var(--cream)}
-.nn-treat-prac-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:13px;font-style:italic;color:#fff;flex-shrink:0}
+.nn-treat-prac-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:13px;font-style:italic;color:#fff;flex-shrink:0;overflow:hidden;background-size:cover;background-position:center top}
 .nn-treat-prac-arrow{margin-left:auto;color:var(--gold);font-size:14px;opacity:0;transition:opacity .3s}
 .nn-treat-prac-btn:hover .nn-treat-prac-arrow{opacity:1}
 
@@ -212,7 +212,7 @@ const css = `
 .nn-team-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gold);transform:scaleX(0);transition:transform .4s}
 .nn-team-card:hover{transform:translateY(-6px);box-shadow:0 12px 40px rgba(44,40,37,.10)}
 .nn-team-card:hover::before{transform:scaleX(1)}
-.nn-team-avatar{width:60px;height:60px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff}
+.nn-team-avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff;overflow:hidden;background-size:cover;background-position:center top}
 .nn-team-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;margin-bottom:6px}
 .nn-team-role{font-size:12px;color:var(--warm-gray);font-weight:300;margin-bottom:4px}
 .nn-team-spec{font-size:11px;color:var(--gold);font-weight:500;letter-spacing:1px;text-transform:uppercase}
@@ -427,7 +427,11 @@ function ServicesList({ services, practitioners, onBookWith }) {
                 const p = findPrac(name);
                 return (
                   <button key={name} className="nn-treat-prac-btn" onClick={() => { if (p) onBookWith(p); }}>
-                    <div className="nn-treat-prac-dot" style={{ background: p?.color || "var(--gold)" }}>{name[0]}</div>
+                    {p?.photo ? (
+                      <div className="nn-treat-prac-dot" style={{ backgroundImage:`url(${p.photo})` }} />
+                    ) : (
+                      <div className="nn-treat-prac-dot" style={{ background: p?.color || "var(--gold)" }}>{name[0]}</div>
+                    )}
                     <span>{name}</span>
                     <span className="nn-treat-prac-arrow">→</span>
                   </button>
@@ -450,10 +454,16 @@ function TeamSection({ practitioners }) {
       <div className="nn-team-grid">
         {practitioners.map((p) => (
           <div className="nn-team-card" key={p.id}>
-            <div className="nn-team-avatar" style={{ background: p.color }}>{p.name[0]}</div>
+            {p.photo ? (
+              <div className="nn-team-avatar" style={{ backgroundImage: `url(${p.photo})` }} />
+            ) : (
+              <div className="nn-team-avatar" style={{ background: p.color }}>{p.name[0]}</div>
+            )}
             <div className="nn-team-name">{p.name}</div>
             <div className="nn-team-role">{p.role}</div>
-            <div className="nn-team-spec">{p.specialty}</div>
+            {p.instagram && (
+              <a href={`https://www.instagram.com/${p.instagram.replace('@','')}/`} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"var(--gold)", textDecoration:"none", marginTop:6, display:"inline-block" }}>{p.instagram}</a>
+            )}
           </div>
         ))}
       </div>
@@ -551,7 +561,11 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
         <div className="nn-prac-grid">
           {practitioners.map((p) => (
             <div key={p.id} className={`nn-prac-card ${prac?.id===p.id?"picked":""}`} onClick={() => setPrac(p)}>
-              <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
+              {p.photo ? (
+                <div className="nn-team-avatar" style={{ backgroundImage:`url(${p.photo})`, width:48, height:48, margin:"0 auto 14px" }} />
+              ) : (
+                <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
+              )}
               <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:400, marginBottom:4 }}>{p.name}</div>
               <div style={{ fontSize:11, color:"var(--warm-gray)", fontWeight:300 }}>{p.specialty}</div>
             </div>
