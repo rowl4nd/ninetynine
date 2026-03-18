@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // These pull from environment variables (set in Vercel or .env.local)
