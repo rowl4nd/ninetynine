@@ -386,6 +386,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const [cM, setCM] = useState(now.getMonth());
   const [cY, setCY] = useState(now.getFullYear());
   const labels = ["Practitioner", "Service", "Date & Time", "Confirm"];
+  const handleSelectPrac = (p) => { setPrac(p); setStep(2); };
 
   useEffect(() => {
     if (preselectedPrac) {
@@ -467,7 +468,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           <H3>Who would you like to see?</H3>
           <div className="nn-prac-grid">
             {practitioners.map(p => (
-              <div key={p.id} className={"nn-prac-card"+(prac?.id===p.id?" picked":"")} onClick={() => setPrac(p)}>
+              <div key={p.id} className={"nn-prac-card"+(prac?.id===p.id?" picked":"")} onClick={() => { setPrac(p); setStep(2); }}>
                 {p.photo
                   ? <div className="nn-team-avatar" style={{ backgroundImage:"url("+p.photo+")", width:48, height:48, margin:"0 auto 14px" }}/>
                   : <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
