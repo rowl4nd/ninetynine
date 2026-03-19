@@ -411,7 +411,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
 
   const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
   const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
-  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);  const dateStep = svc?.addon ? 4 : 3;
+  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+  const dateStep = svc?.addon ? 4 : 3;
   const confirmStep = svc?.addon ? 5 : 4;
 
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
@@ -1067,43 +1068,6 @@ function Dashboard({ onBack }) {
               }}>{mins} min</button>
             ))}
           </div>
-          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:20, lineHeight:1.7 }}>How often should available time slots appear in the booking calendar?</p>
-<div style={{ display:"flex", gap:12, alignItems:"center", padding:"16px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:32 }}>
-  <span style={{ fontSize:14, fontWeight:500, marginRight:8 }}>Show slots every</span>
-  {[15, 30, 60].map(mins => (
-    <button key={mins} onClick={async () => {
-      if (IS_DEMO) return;
-      try {
-        await supabase.update("practitioners", { slot_interval: mins }, "id=eq."+prac.id, auth.access_token);
-        setPrac(prev => ({ ...prev, slot_interval: mins }));
-      } catch(e) { console.error(e); }
-    }} style={{
-      padding:"10px 20px",
-      background: (prac?.slot_interval || 30) === mins ? "var(--charcoal)" : "none",
-      color: (prac?.slot_interval || 30) === mins ? "var(--cream)" : "var(--charcoal)",
-      border: (prac?.slot_interval || 30) === mins ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)",
-      cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:500,
-      transition:"all .2s"
-    }}>{mins} min</button>
-  ))}
-
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Blocked Dates
-          </div>
-          <div style={{ display:"flex", gap:12, marginBottom:24 }}>
-            <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ flex:1, padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}/>
-            <button onClick={addBlockedDate} disabled={!newBlock||blockSaving} style={{ padding:"12px 28px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", opacity:newBlock&&!blockSaving?1:.35 }}>Block</button>
-          </div>
-          {blockedDates.length===0 ? (
-            <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, padding:"20px 0" }}>No dates blocked.</div>
-          ) : (
-            blockedDates.map(b => (
-              <div key={b.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8 }}>
-                <div style={{ fontSize:14, fontWeight:500 }}>{new Date(b.blocked_date+"T12:00:00").toLocaleDateString("en-GB",{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}</div>
-                <button onClick={() => removeBlockedDate(b.id)} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Remove</button>
-              </div>
-            ))
-          )}
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Calendar Sync
           </div>
