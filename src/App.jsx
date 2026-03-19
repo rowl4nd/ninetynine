@@ -537,7 +537,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           ) : customServices.length === 0 ? (
             <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>No services available yet. Please DM us on Instagram.</div>
           ) : (
-            customServices.map(s => (
              {(() => {
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
@@ -1078,10 +1077,10 @@ function Dashboard({ onBack }) {
                     <ServiceForm
   practitionerId={prac.id}
   token={auth.access_token}
-  existingService={editingCustomService} // or null
+  existingService={existingService={null} // or null
   existingGroups={existingGroups}
-  onSave={...}
-  onCancel={...}
+  onSave={() => { setEditingCustomService(null); refreshServices(); }}
+  onCancel={() => setEditingCustomService(null)}
 />
                   ) : (
                     <div style={{ padding:"18px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8, display:"flex", alignItems:"flex-start", gap:16 }}>
@@ -1114,10 +1113,10 @@ function Dashboard({ onBack }) {
             <ServiceForm
   practitionerId={prac.id}
   token={auth.access_token}
-  existingService={editingCustomService} // or null
+  existingService={null} // or null
   existingGroups={existingGroups}
-  onSave={...}
-  onCancel={...}
+  onSave={() => { setShowServiceForm(false); refreshServices(); }}
+  onCancel={() => setShowServiceForm(false)}
 />
           ) : (
             !editingCustomService && (
