@@ -509,39 +509,67 @@ function TeamSection({ practitioners }) {
 
 // ─── Booking Flow ────────────────────────────────────────────────────────────
 
-function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselect }) {
+function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const [step, setStep] = useState(preselectedPrac ? 2 : 1);
   const [prac, setPrac] = useState(preselectedPrac || null);
   const [svc, setSvc] = useState(null);
-
-  // When a practitioner is pre-selected from the services section
+  const [addon, setAddon] = useState(null); // selected add-on
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [customServices, setCustomServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const now = new Date();
+  const [cM, setCM] = useState(now.getMonth());
+  const [cY, setCY] = useState(now.getFullYear());
+ 
+  // Steps: 1=practitioner, 2=service, 3=addon(if any), 4=datetime, 5=confirm
+  const labels = ["Practitioner", "Service", "Date & Time", "Confirm"];
+ 
   useEffect(() => {
     if (preselectedPrac) {
       setPrac(preselectedPrac);
       setStep(2);
       setSvc(null);
+      setAddon(null);
       setDate(null);
       setTime(null);
       setDone(false);
       if (onClearPreselect) onClearPreselect();
     }
   }, [preselectedPrac]);
-
-  const [date, setDate] = useState(null);
-  const [time, setTime] = useState(null);
-  const [cat, setCat] = useState("nails");
-  const [done, setDone] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const now = new Date();
-  const [cM, setCM] = useState(now.getMonth());
-  const [cY, setCY] = useState(now.getFullYear());
-  const labels = ["Practitioner", "Service", "Date & Time", "Confirm"];
-
-  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, svc?.duration);
-
+ 
+  // Load custom services when practitioner selected
+  useEffect(() => {
+    if (!prac) { setCustomServices([]); return; }
+    if (IS_DEMO) {
+      // Fall back to demo services in demo mode
+      const names = PRACTITIONER_SERVICE_LIST[prac.name] || [];
+      const all = [...DEMO_SERVICES.nails, ...DEMO_SERVICES.beauty];
+      setCustomServices(all.filter(s => names.includes(s.name)).map(s => ({
+        id: s.id, title: s.name, description: "", duration: s.duration, price: s.price, addon: null
+      })));
+      return;
+    }
+    setLoadingServices(true);
+    supabase.query("custom_services", {
+      select: "*,addon:custom_service_addons(*)",
+      filters: `&practitioner_id=eq.${prac.id}&is_active=eq.true&order=created_at`,
+    }).then(rows => {
+      setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
+      setLoadingServices(false);
+    }).catch(() => setLoadingServices(false));
+  }, [prac]);
+ 
+  const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
+  const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
+ 
+  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration);
+ 
   async function handleConfirm() {
     if (IS_DEMO) { setDone(true); return; }
     setSaving(true);
@@ -554,8 +582,9 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
         client_email: email,
         booking_date: dateStr(date.year, date.month, date.day),
         booking_time: time + ":00",
-        duration: svc.duration,
-        price: svc.price,
+        duration: totalDuration,
+        price: totalPrice,
+        notes: addon ? `Add-on: ${addon.title}` : "",
       });
       setDone(true);
     } catch (e) {
@@ -564,11 +593,21 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
     }
     setSaving(false);
   }
-
+ 
+  // Work out actual step number for progress indicator
+  // If service has addon, we have an extra step
+  const hasAddonStep = svc?.addon;
+  const dateStep = hasAddonStep ? 4 : 3;
+  const confirmStep = hasAddonStep ? 5 : 4;
+ 
   if (done) {
     return (
-      <div style={{ padding: "60px 0", maxWidth: 480, margin: "0 auto" }}>
-        <div className="nn-success-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div style={{ padding:"60px 0", maxWidth:480, margin:"0 auto" }}>
+        <div className="nn-success-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
         <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, textAlign:"center", marginBottom:10 }}>You're all booked</h2>
         <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.6 }}>
           {name}, your appointment with {prac.name} is confirmed for {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} at {time}.<br/>See you at 99 Banks Road!
@@ -576,11 +615,14 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
       </div>
     );
   }
-
-  const H3 = ({ children }) => <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:400, marginBottom:24 }}>{children}</h3>;
-
+ 
+  const H3 = ({ children }) => (
+    <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:400, marginBottom:24 }}>{children}</h3>
+  );
+ 
   return (
     <div>
+      {/* Progress steps */}
       <div className="nn-steps">
         {labels.map((l, i) => (
           <React.Fragment key={i}>
@@ -591,120 +633,327 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
           </React.Fragment>
         ))}
       </div>
-
-      {step === 1 && (<div>
-        <H3>Who would you like to see?</H3>
-        <div className="nn-prac-grid">
-          {practitioners.map((p) => (
-            <div key={p.id} className={`nn-prac-card ${prac?.id===p.id?"picked":""}`} onClick={() => setPrac(p)}>
-              {p.photo ? (
-                <div className="nn-team-avatar" style={{ backgroundImage:`url(${p.photo})`, width:48, height:48, margin:"0 auto 14px" }} />
-              ) : (
-                <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
-              )}
-              <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:400, marginBottom:4 }}>{p.name}</div>
-              <div style={{ fontSize:11, color:"var(--warm-gray)", fontWeight:300 }}>{p.specialty}</div>
-            </div>
-          ))}
-        </div>
-        <div className="nn-booking-nav"><button className="nn-btn nn-btn-dark" onClick={() => setStep(2)} disabled={!prac} style={{ opacity:prac?1:.35 }}>Continue</button></div>
-      </div>)}
-
-      {step === 2 && (<div>
-        <H3>{prac?.name}'s treatments</H3>
-        {(() => {
-          // Get services this practitioner offers
-          const pracServiceNames = PRACTITIONER_SERVICE_LIST[prac?.name] || [];
-          const allServices = [...(services.nails || []), ...(services.beauty || [])];
-          const filtered = allServices.filter((s) => pracServiceNames.includes(s.name));
-          if (filtered.length === 0) return <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>No services found for this practitioner.</div>;
-          return filtered.map((s) => (
-            <div key={s.id} className={`nn-svc-item ${svc?.id===s.id?"picked":""}`} onClick={() => setSvc(s)}>
-              <div>
-                <div style={{ fontWeight:500, marginBottom:3 }}>{s.name}</div>
-                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{s.duration} minutes</div>
+ 
+      {/* Step 1 — Practitioner */}
+      {step === 1 && (
+        <div>
+          <H3>Who would you like to see?</H3>
+          <div className="nn-prac-grid">
+            {practitioners.map(p => (
+              <div key={p.id} className={`nn-prac-card ${prac?.id===p.id?"picked":""}`} onClick={() => setPrac(p)}>
+                {p.photo ? (
+                  <div className="nn-team-avatar" style={{ backgroundImage:`url(${p.photo})`, width:48, height:48, margin:"0 auto 14px" }}/>
+                ) : (
+                  <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
+                )}
+                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:400, marginBottom:4 }}>{p.name}</div>
+                <div style={{ fontSize:11, color:"var(--warm-gray)", fontWeight:300 }}>{p.specialty}</div>
               </div>
-              <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
-            </div>
-          ));
-        })()}
-        <div className="nn-booking-nav">
-          <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
-          <button className="nn-btn nn-btn-dark" onClick={() => setStep(3)} disabled={!svc} style={{ opacity:svc?1:.35 }}>Continue</button>
+            ))}
+          </div>
+          <div className="nn-booking-nav">
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(2)} disabled={!prac} style={{ opacity:prac?1:.35 }}>Continue</button>
+          </div>
         </div>
-      </div>)}
-
-      {step === 3 && (<div>
-        <H3>Pick a date &amp; time</H3>
-        <div style={{ display:"flex", gap:48, flexWrap:"wrap" }}>
-          <div className="nn-cal">
-            <div className="nn-cal-head">
-              <button className="nn-cal-btn" onClick={() => { if(cM===0){setCM(11);setCY(cY-1)}else setCM(cM-1) }}>‹</button>
-              <h3>{getMonthName(cM)} {cY}</h3>
-              <button className="nn-cal-btn" onClick={() => { if(cM===11){setCM(0);setCY(cY+1)}else setCM(cM+1) }}>›</button>
+      )}
+ 
+      {/* Step 2 — Service */}
+      {step === 2 && (
+        <div>
+          <H3>{prac?.name}'s services</H3>
+          {loadingServices ? (
+            <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>Loading services...</div>
+          ) : customServices.length === 0 ? (
+            <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>
+              No services available for this practitioner yet. Please check back soon or DM us on Instagram.
             </div>
-            <div className="nn-cal-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d) => <span key={d}>{d}</span>)}</div>
-            <div className="nn-cal-days">
-              {(() => {
-                const first = (new Date(cY,cM,1).getDay()+6)%7;
-                const total = getDaysInMonth(cY,cM);
-                const cells = [];
-                for(let i=0;i<first;i++) cells.push(<div className="nn-cal-day nil" key={`e${i}`}/>);
-                for(let d=1;d<=total;d++){
-                  const isNow=d===now.getDate()&&cM===now.getMonth()&&cY===now.getFullYear();
-                  const past=new Date(cY,cM,d)<new Date(now.getFullYear(),now.getMonth(),now.getDate());
-                  const sun=new Date(cY,cM,d).getDay()===0;
-                  const sel=date&&date.day===d&&date.month===cM&&date.year===cY;
-                  cells.push(<button key={d} className={`nn-cal-day ${sel?"on":""} ${past||sun?"off":""} ${isNow?"now":""}`}
-                    onClick={() => { if(!past&&!sun){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||sun}>{d}</button>);
-                }
-                return cells;
-              })()}
+          ) : (
+            customServices.map(s => (
+              <div key={s.id} className={`nn-svc-item ${svc?.id===s.id?"picked":""}`} onClick={() => { setSvc(s); setAddon(null); }}>
+                <div>
+                  <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
+                  {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
+                  <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
+                  {s.addon && (
+                    <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>+ {s.addon.title} available as add-on</div>
+                  )}
+                </div>
+                <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
+              </div>
+            ))
+          )}
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => {
+              if (svc?.addon) setStep(3);
+              else setStep(dateStep);
+            }} disabled={!svc} style={{ opacity:svc?1:.35 }}>Continue</button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Step 3 — Add-on (only if service has one) */}
+      {step === 3 && svc?.addon && (
+        <div>
+          <H3>Would you like to add anything?</H3>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:28, lineHeight:1.7 }}>
+            You can add the following optional extra to your {svc.title} appointment.
+          </p>
+ 
+          {/* Skip option */}
+          <div className={`nn-svc-item ${addon===null?"picked":""}`} onClick={() => setAddon(null)}
+            style={{ marginBottom:8 }}>
+            <div>
+              <div style={{ fontWeight:500 }}>No add-on</div>
+              <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Just the {svc.title}</div>
+            </div>
+            <div style={{ fontSize:14, color:"var(--warm-gray)" }}>—</div>
+          </div>
+ 
+          {/* Add-on option */}
+          <div className={`nn-svc-item ${addon?.id===svc.addon.id?"picked":""}`} onClick={() => setAddon(svc.addon)}>
+            <div>
+              <div style={{ fontWeight:500 }}>{svc.addon.title}</div>
+              <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{svc.addon.duration} min extra</div>
+            </div>
+            <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>+£{svc.addon.price}</div>
+          </div>
+ 
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(dateStep)}>Continue</button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Step 4 — Date & Time */}
+      {step === dateStep && (
+        <div>
+          <H3>Pick a date &amp; time</H3>
+          <div style={{ display:"flex", gap:48, flexWrap:"wrap" }}>
+            <div className="nn-cal">
+              <div className="nn-cal-head">
+                <button className="nn-cal-btn" onClick={() => { if(cM===0){setCM(11);setCY(cY-1)}else setCM(cM-1) }}>‹</button>
+                <h3>{getMonthName(cM)} {cY}</h3>
+                <button className="nn-cal-btn" onClick={() => { if(cM===11){setCM(0);setCY(cY+1)}else setCM(cM+1) }}>›</button>
+              </div>
+              <div className="nn-cal-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}</div>
+              <div className="nn-cal-days">
+                {(() => {
+                  const first = (new Date(cY,cM,1).getDay()+6)%7;
+                  const total = getDaysInMonth(cY,cM);
+                  const cells = [];
+                  for(let i=0;i<first;i++) cells.push(<div className="nn-cal-day nil" key={`e${i}`}/>);
+                  for(let d=1;d<=total;d++){
+                    const isNow=d===now.getDate()&&cM===now.getMonth()&&cY===now.getFullYear();
+                    const past=new Date(cY,cM,d)<new Date(now.getFullYear(),now.getMonth(),now.getDate());
+                    const sun=new Date(cY,cM,d).getDay()===0;
+                    const sel=date&&date.day===d&&date.month===cM&&date.year===cY;
+                    cells.push(<button key={d} className={`nn-cal-day ${sel?"on":""} ${past||sun?"off":""} ${isNow?"now":""}`}
+                      onClick={() => { if(!past&&!sun){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||sun}>{d}</button>);
+                  }
+                  return cells;
+                })()}
+              </div>
+            </div>
+            {date && (
+              <div style={{ flex:1, minWidth:200 }}>
+                <div style={{ fontSize:14, color:"var(--warm-gray)", marginBottom:14, fontWeight:300 }}>
+                  {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)}
+                </div>
+                {slotsLoading ? (
+                  <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>Loading available times...</div>
+                ) : slots.length === 0 ? (
+                  <div style={{ color:"var(--red)", fontSize:14, fontWeight:300 }}>No available slots on this date. Try another day.</div>
+                ) : (
+                  <div className="nn-times">{slots.map(t => <button key={t} className={`nn-time ${time===t?"on":""}`} onClick={() => setTime(t)}>{t}</button>)}</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(svc?.addon ? 3 : 2)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(confirmStep)} disabled={!date||!time} style={{ opacity:date&&time?1:.35 }}>Continue</button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Step 5 — Confirm */}
+      {step === confirmStep && (
+        <div>
+          <H3>Confirm your booking</H3>
+          <div className="nn-confirm">
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Practitioner</span><span className="nn-confirm-val">{prac?.name}</span></div>
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Treatment</span><span className="nn-confirm-val">{svc?.title}</span></div>
+            {addon && (
+              <div className="nn-confirm-row"><span className="nn-confirm-label">Add-on</span><span className="nn-confirm-val">{addon.title}</span></div>
+            )}
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Date</span><span className="nn-confirm-val">{getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} {date.year}</span></div>
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Time</span><span className="nn-confirm-val">{time}</span></div>
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{totalDuration} min</span></div>
+            <div className="nn-confirm-row"><span className="nn-confirm-label">Price</span><span className="nn-confirm-val">£{totalPrice}</span></div>
+            <div style={{ marginTop:28, display:"flex", flexDirection:"column", gap:16 }}>
+              <div><label className="nn-input-label">Your Name</label><input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"/></div>
+              <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx"/></div>
+              <div><label className="nn-input-label">Email (optional)</label><input className="nn-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="for confirmation email"/></div>
             </div>
           </div>
-          {date && (
-            <div style={{ flex:1, minWidth:200 }}>
-              <div style={{ fontSize:14, color:"var(--warm-gray)", marginBottom:14, fontWeight:300 }}>
-                {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)}
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(dateStep)}>Back</button>
+            <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!name||!phone||saving} style={{ opacity:name&&phone&&!saving?1:.35 }}>
+              {saving ? "Booking..." : "Confirm Booking"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServiceForm({ practitionerId, token, existingService, onSave, onCancel }) {
+  const [title, setTitle] = useState(existingService?.title || "");
+  const [description, setDescription] = useState(existingService?.description || "");
+  const [duration, setDuration] = useState(existingService?.duration?.toString() || "");
+  const [price, setPrice] = useState(existingService?.price?.toString() || "");
+  const [hasAddon, setHasAddon] = useState(!!existingService?.addon);
+  const [addonTitle, setAddonTitle] = useState(existingService?.addon?.title || "");
+  const [addonDuration, setAddonDuration] = useState(existingService?.addon?.duration?.toString() || "15");
+  const [addonPrice, setAddonPrice] = useState(existingService?.addon?.price?.toString() || "");
+  const [saving, setSaving] = useState(false);
+ 
+  async function handleSave() {
+    if (!title || !duration || !price) return;
+    setSaving(true);
+    try {
+      let serviceId = existingService?.id;
+      if (existingService) {
+        // Update existing
+        await supabase.update("custom_services",
+          { title, description, duration: parseInt(duration), price: parseFloat(price) },
+          `id=eq.${existingService.id}`,
+          token
+        );
+      } else {
+        // Insert new
+        const res = await supabase.insert("custom_services", {
+          practitioner_id: practitionerId,
+          title, description,
+          duration: parseInt(duration),
+          price: parseFloat(price),
+        }, token);
+        serviceId = res[0].id;
+      }
+ 
+      // Handle addon
+      if (hasAddon && addonTitle && addonDuration && addonPrice) {
+        if (existingService?.addon) {
+          // Update existing addon
+          await supabase.update("custom_service_addons",
+            { title: addonTitle, duration: parseInt(addonDuration), price: parseFloat(addonPrice) },
+            `id=eq.${existingService.addon.id}`,
+            token
+          );
+        } else {
+          // Insert new addon
+          await supabase.insert("custom_service_addons", {
+            service_id: serviceId,
+            title: addonTitle,
+            duration: parseInt(addonDuration),
+            price: parseFloat(addonPrice),
+          }, token);
+        }
+      } else if (!hasAddon && existingService?.addon) {
+        // Delete addon if toggled off
+        await fetch(`${SUPABASE_URL}/rest/v1/custom_service_addons?id=eq.${existingService.addon.id}`, {
+          method: "DELETE",
+          headers: supabase.headers(token),
+        });
+      }
+ 
+      onSave();
+    } catch (e) {
+      console.error(e);
+      alert("Error saving service. Please try again.");
+    }
+    setSaving(false);
+  }
+ 
+  return (
+    <div style={{ padding:"28px", background:"var(--cream)", border:"1.5px solid var(--border)", marginBottom:12 }}>
+      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:24 }}>
+        {existingService ? "Edit service" : "Add a service"}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+        <div>
+          <label className="nn-input-label">Service Title</label>
+          <input className="nn-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Gel Manicure"/>
+        </div>
+        <div>
+          <label className="nn-input-label">Description (optional)</label>
+          <input className="nn-input" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Includes base coat, colour and top coat"/>
+        </div>
+        <div style={{ display:"flex", gap:16 }}>
+          <div style={{ flex:1 }}>
+            <label className="nn-input-label">Duration (minutes)</label>
+            <input className="nn-input" type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45"/>
+          </div>
+          <div style={{ flex:1 }}>
+            <label className="nn-input-label">Price (£)</label>
+            <input className="nn-input" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="30"/>
+          </div>
+        </div>
+ 
+        {/* Add-on toggle */}
+        <div style={{ padding:"16px 20px", background:"var(--warm-white)", border:"1px solid var(--border)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: hasAddon ? 16 : 0 }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:500 }}>Optional add-on</div>
+              <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>e.g. Nail Art, Brow Tint</div>
+            </div>
+            <button onClick={() => setHasAddon(o => !o)} style={{
+              width:44, height:24, borderRadius:12, border:"none", cursor:"pointer",
+              background: hasAddon ? "var(--charcoal)" : "var(--border)",
+              position:"relative", transition:"background .2s", flexShrink:0
+            }}>
+              <span style={{
+                position:"absolute", top:3, left: hasAddon ? 23 : 3,
+                width:18, height:18, borderRadius:"50%", background:"#fff",
+                transition:"left .2s", display:"block"
+              }}/>
+            </button>
+          </div>
+ 
+          {hasAddon && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div>
+                <label className="nn-input-label">Add-on Title</label>
+                <input className="nn-input" type="text" value={addonTitle} onChange={e => setAddonTitle(e.target.value)} placeholder="e.g. Nail Art"/>
               </div>
-              {slotsLoading ? (
-                <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>Loading available times...</div>
-              ) : slots.length === 0 ? (
-                <div style={{ color:"var(--red)", fontSize:14, fontWeight:300 }}>No available slots on this date. Try another day.</div>
-              ) : (
-                <div className="nn-times">{slots.map((t) => <button key={t} className={`nn-time ${time===t?"on":""}`} onClick={() => setTime(t)}>{t}</button>)}</div>
-              )}
+              <div style={{ display:"flex", gap:16 }}>
+                <div style={{ flex:1 }}>
+                  <label className="nn-input-label">Duration (minutes)</label>
+                  <input className="nn-input" type="number" value={addonDuration} onChange={e => setAddonDuration(e.target.value)} placeholder="15"/>
+                </div>
+                <div style={{ flex:1 }}>
+                  <label className="nn-input-label">Price (£)</label>
+                  <input className="nn-input" type="number" value={addonPrice} onChange={e => setAddonPrice(e.target.value)} placeholder="10"/>
+                </div>
+              </div>
             </div>
           )}
         </div>
-        <div className="nn-booking-nav">
-          <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
-          <button className="nn-btn nn-btn-dark" onClick={() => setStep(4)} disabled={!date||!time} style={{ opacity:date&&time?1:.35 }}>Continue</button>
-        </div>
-      </div>)}
-
-      {step === 4 && (<div>
-        <H3>Confirm your booking</H3>
-        <div className="nn-confirm">
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Practitioner</span><span className="nn-confirm-val">{prac?.name}</span></div>
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Treatment</span><span className="nn-confirm-val">{svc?.name}</span></div>
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Date</span><span className="nn-confirm-val">{getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} {date.year}</span></div>
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Time</span><span className="nn-confirm-val">{time}</span></div>
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{svc?.duration} min</span></div>
-          <div className="nn-confirm-row"><span className="nn-confirm-label">Price</span><span className="nn-confirm-val">£{svc?.price}</span></div>
-          <div style={{ marginTop:28, display:"flex", flexDirection:"column", gap:16 }}>
-            <div><label className="nn-input-label">Your Name</label><input className="nn-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name"/></div>
-            <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07xxx xxxxxx"/></div>
-            <div><label className="nn-input-label">Email (optional)</label><input className="nn-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="for confirmation email"/></div>
-          </div>
-        </div>
-        <div className="nn-booking-nav">
-          <button className="nn-btn-back" onClick={() => setStep(3)}>Back</button>
-          <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!name||!phone||saving} style={{ opacity:name&&phone&&!saving?1:.35 }}>
-            {saving ? "Booking..." : "Confirm Booking"}
+ 
+        <div style={{ display:"flex", gap:12, marginTop:8 }}>
+          <button onClick={onCancel} className="nn-btn-back">Cancel</button>
+          <button onClick={handleSave} disabled={!title || !duration || !price || saving}
+            style={{ padding:"14px 32px", background:"var(--charcoal)", color:"var(--cream)",
+              border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif",
+              fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase",
+              opacity: title && duration && price && !saving ? 1 : 0.35 }}>
+            {saving ? "Saving..." : existingService ? "Save Changes" : "Add Service"}
           </button>
         </div>
-      </div>)}
+      </div>
     </div>
   );
 }
@@ -717,6 +966,9 @@ function AddServiceForm({ allServices, myServices, onAdd }) {
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [customServices, setCustomServices] = useState([]);
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [editingCustomService, setEditingCustomService] = useState(null);
 
   const myServiceIds = myServices.map(s => s.service_id);
   const available = allServices.filter(s => !myServiceIds.includes(s.id));
@@ -880,25 +1132,16 @@ function Dashboard({ onBack }) {
 
   // ── Load services ──
   useEffect(() => {
-    if (!auth || !prac || tab !== "services") return;
-    if (IS_DEMO) {
-      const all = [...DEMO_SERVICES.nails, ...DEMO_SERVICES.beauty];
-      setAllServices(all);
-      const myNames = PRACTITIONER_SERVICE_LIST[prac.name] || [];
-      setMyServices(all.filter(s => myNames.includes(s.name)).map(s => ({ service_id: s.id, custom_price: null })));
-      return;
-    }
-    Promise.all([
-      supabase.query("services", { filters: "&is_active=eq.true&order=category,name" }),
-      supabase.query("practitioner_services", {
-        filters: `&practitioner_id=eq.${prac.id}`,
-        token: auth.access_token,
-      }),
-    ]).then(([svcs, myS]) => {
-      setAllServices(svcs);
-      setMyServices(myS);
-    }).catch(console.error);
-  }, [auth, prac, tab]);
+  if (!auth || !prac || tab !== "services") return;
+  if (IS_DEMO) { setCustomServices([]); return; }
+  supabase.query("custom_services", {
+    select: "*,addon:custom_service_addons(*)",
+    filters: `&practitioner_id=eq.${prac.id}&is_active=eq.true&order=created_at`,
+    token: auth.access_token,
+  }).then(rows => {
+    setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
+  }).catch(console.error);
+}, [auth, prac, tab]);
 
   // ── Load schedule ──
   useEffect(() => {
@@ -1144,77 +1387,105 @@ function Dashboard({ onBack }) {
       {tab === "services" && (
   <div style={{ maxWidth:680 }}>
     <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
-      Add the services you offer and set your own duration and price for each.
+      Add and manage your own services. Clients will see these when booking with you.
     </p>
-
-    {/* Current services list */}
-    {myServices.length === 0 ? (
+ 
+    {/* Current services */}
+    {customServices.length === 0 && !showServiceForm ? (
       <div style={{ padding:"32px 0", color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>
-        No services added yet — add your first service below.
+        No services yet — add your first service below.
       </div>
     ) : (
-      <div style={{ marginBottom:32 }}>
-        {myServices.map(ms => {
-          const svc = allServices.find(s => s.id === ms.service_id);
-          if (!svc) return null;
-          return (
-            <div key={ms.service_id} style={{
-              display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
-              background:"var(--warm-white)", border:"1.5px solid var(--border)",
-              marginBottom:8
-            }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontWeight:500, fontSize:14 }}>{svc.name}</div>
-                <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>
-                  {ms.custom_duration || svc.duration} min · £{ms.custom_price || svc.price}
+      <div style={{ marginBottom:24 }}>
+        {customServices.map(svc => (
+          <div key={svc.id}>
+            {editingCustomService?.id === svc.id ? (
+              <ServiceForm
+                practitionerId={prac.id}
+                token={auth.access_token}
+                existingService={editingCustomService}
+                onSave={() => {
+                  setEditingCustomService(null);
+                  // Refresh services
+                  supabase.query("custom_services", {
+                    select: "*,addon:custom_service_addons(*)",
+                    filters: \`&practitioner_id=eq.\${prac.id}&is_active=eq.true&order=created_at\`,
+                    token: auth.access_token,
+                  }).then(rows => setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null }))));
+                }}
+                onCancel={() => setEditingCustomService(null)}
+              />
+            ) : (
+              <div style={{
+                padding:"18px 20px", background:"var(--warm-white)",
+                border:"1.5px solid var(--border)", marginBottom:8,
+                display:"flex", alignItems:"flex-start", gap:16
+              }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:500, fontSize:14 }}>{svc.title}</div>
+                  {svc.description && (
+                    <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{svc.description}</div>
+                  )}
+                  <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>
+                    {svc.duration} min · £{svc.price}
+                  </div>
+                  {svc.addon && (
+                    <div style={{ marginTop:8, padding:"8px 12px", background:"var(--cream)", border:"1px solid var(--border)", fontSize:12 }}>
+                      <span style={{ color:"var(--gold)", fontWeight:500 }}>+ Add-on: </span>
+                      {svc.addon.title} · {svc.addon.duration} min · £{svc.addon.price}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                  <button onClick={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
+                    style={{ padding:"6px 14px", background:"none", color:"var(--charcoal)",
+                      border:"1px solid var(--border)", cursor:"pointer", fontSize:11,
+                      fontWeight:600, letterSpacing:.5, textTransform:"uppercase",
+                      fontFamily:"'Outfit',sans-serif" }}>Edit</button>
+                  <button onClick={async () => {
+                    await supabase.update("custom_services", { is_active: false }, \`id=eq.\${svc.id}\`, auth.access_token);
+                    setCustomServices(prev => prev.filter(s => s.id !== svc.id));
+                  }} style={{ padding:"6px 14px", background:"none", color:"var(--red)",
+                    border:"1px solid var(--red)", cursor:"pointer", fontSize:11,
+                    fontWeight:600, letterSpacing:.5, textTransform:"uppercase",
+                    fontFamily:"'Outfit',sans-serif" }}>Remove</button>
                 </div>
               </div>
-              <button onClick={() => toggleService(svc)} style={{
-                padding:"6px 14px", background:"none", color:"var(--red)",
-                border:"1px solid var(--red)", cursor:"pointer", fontSize:11,
-                fontWeight:600, letterSpacing:.5, textTransform:"uppercase",
-                fontFamily:"'Outfit',sans-serif"
-              }}>Remove</button>
-            </div>
-          );
-        })}
+            )}
+          </div>
+        ))}
       </div>
     )}
-
-    {/* Add service form */}
-    <AddServiceForm
-      allServices={allServices}
-      myServices={myServices}
-      onAdd={async (serviceId, duration, price) => {
-        if (IS_DEMO) {
-          setMyServices(prev => [...prev, { service_id: serviceId, custom_price: price, custom_duration: duration }]);
-          return;
-        }
-        try {
-          // Check if already exists (deleted previously)
-          const existing = await supabase.query("practitioner_services", {
-            filters: `&practitioner_id=eq.${prac.id}&service_id=eq.${serviceId}`,
+ 
+    {/* Add service form or button */}
+    {showServiceForm ? (
+      <ServiceForm
+        practitionerId={prac.id}
+        token={auth.access_token}
+        existingService={null}
+        onSave={() => {
+          setShowServiceForm(false);
+          supabase.query("custom_services", {
+            select: "*,addon:custom_service_addons(*)",
+            filters: \`&practitioner_id=eq.\${prac.id}&is_active=eq.true&order=created_at\`,
             token: auth.access_token,
-          });
-          if (existing.length > 0) {
-            const res = await supabase.update("practitioner_services",
-              { custom_price: price, custom_duration: duration },
-              `practitioner_id=eq.${prac.id}&service_id=eq.${serviceId}`,
-              auth.access_token
-            );
-            setMyServices(prev => [...prev, { service_id: serviceId, custom_price: price, custom_duration: duration }]);
-          } else {
-            const res = await supabase.insert("practitioner_services", {
-              practitioner_id: prac.id,
-              service_id: serviceId,
-              custom_price: price,
-              custom_duration: duration,
-            }, auth.access_token);
-            setMyServices(prev => [...prev, res[0]]);
-          }
-        } catch (e) { console.error(e); }
-      }}
-    />
+          }).then(rows => setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null }))));
+        }}
+        onCancel={() => setShowServiceForm(false)}
+      />
+    ) : (
+      !editingCustomService && (
+        <button onClick={() => setShowServiceForm(true)} style={{
+          display:"flex", alignItems:"center", gap:10, padding:"14px 24px",
+          background:"none", border:"1.5px dashed var(--border)", cursor:"pointer",
+          fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:500,
+          color:"var(--charcoal)", transition:"all .2s", width:"100%"
+        }}>
+          <span style={{ fontSize:18, color:"var(--gold)", lineHeight:1 }}>+</span>
+          Add a service
+        </button>
+      )
+    )}
   </div>
 )}
 
@@ -1547,7 +1818,7 @@ if (isCancelPage) {
           <h2 className="nn-section-title">Book Your Appointment</h2>
           <p className="nn-section-desc">Choose your practitioner, pick a treatment, and find a time that suits. Payment is taken at the salon.</p>
         </div>
-        <BookingFlow practitioners={practitioners} services={services} preselectedPrac={preselectedPrac} onClearPreselect={() => setPreselectedPrac(null)} />
+        <BookingFlow practitioners={practitioners} preselectedPrac={preselectedPrac} onClearPreselect={() => setPreselectedPrac(null)} />
       </section>
       <div className="nn-fade">
         <section className="nn-section" id="contact">
