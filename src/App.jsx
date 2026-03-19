@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
-// ─── CONFIG ──────────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR_SUPABASE_ANON_KEY";
 
@@ -58,39 +57,14 @@ const DEMO_PRACTITIONERS = [
   { id: "5", name: "Melissa", role: "Nail Technician", specialty: "Nail Art", color: "#BCA68E", photo: null, instagram: null },
 ];
 
-const DEMO_SERVICES = {
-  nails: [
-    { id: "s1", name: "Gel Manicure", category: "nails", duration: 45, price: 30 },
-    { id: "s2", name: "Gel Toes", category: "nails", duration: 45, price: 30 },
-    { id: "s3", name: "Gel Manicure & Toes", category: "nails", duration: 75, price: 50 },
-    { id: "s4", name: "BIAB Overlay", category: "nails", duration: 60, price: 38 },
-    { id: "s5", name: "Acrylic Full Set", category: "nails", duration: 75, price: 40 },
-    { id: "s6", name: "Acrylic Infill", category: "nails", duration: 60, price: 30 },
-    { id: "s7", name: "Nail Art (add-on)", category: "nails", duration: 15, price: 10 },
-    { id: "s8", name: "Gel Removal", category: "nails", duration: 20, price: 10 },
-    { id: "s9", name: "Luxury Manicure", category: "nails", duration: 60, price: 45 },
-  ],
-  beauty: [
-    { id: "s10", name: "Lash Lift & Tint", category: "beauty", duration: 60, price: 40 },
-    { id: "s11", name: "Brow Lamination", category: "beauty", duration: 45, price: 35 },
-    { id: "s12", name: "Brow Wax & Tint", category: "beauty", duration: 20, price: 15 },
-    { id: "s13", name: "Express Facial", category: "beauty", duration: 30, price: 30 },
-    { id: "s14", name: "Luxury Facial", category: "beauty", duration: 60, price: 55 },
-    { id: "s15", name: "Classic Lash Extensions", category: "beauty", duration: 90, price: 55 },
-    { id: "s16", name: "Waxing (from)", category: "beauty", duration: 15, price: 8 },
-    { id: "s17", name: "Lash or Brow Tint", category: "beauty", duration: 15, price: 10 },
-  ],
-};
+const DEMO_SERVICES_LIST = [
+  { id: "s1", title: "Gel Manicure", group_name: null, duration: 45, price: 30, description: "", addon: null },
+  { id: "s2", title: "BIAB Overlay", group_name: "BIAB Manicure", duration: 60, price: 38, description: "", addon: null },
+  { id: "s3", title: "Acrylic Full Set", group_name: null, duration: 75, price: 40, description: "", addon: null },
+  { id: "s4", title: "Gel Removal", group_name: null, duration: 20, price: 10, description: "", addon: null },
+];
 
 const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30"];
-
-const PRACTITIONER_SERVICE_LIST = {
-  "Kristen": ["Gel Manicure", "BIAB Overlay", "Acrylic Full Set", "Acrylic Infill", "Nail Art (add-on)", "Gel Removal"],
-  "Inke": ["Gel Manicure", "Gel Manicure & Toes", "BIAB Overlay", "Luxury Manicure", "Gel Removal", "Lash Lift & Tint", "Brow Lamination", "Brow Wax & Tint", "Classic Lash Extensions", "Lash or Brow Tint"],
-  "Melissa": ["Gel Manicure", "BIAB Overlay", "Acrylic Full Set", "Acrylic Infill", "Nail Art (add-on)", "Gel Removal"],
-  "Holly": ["Gel Toes", "Gel Manicure & Toes", "Gel Removal"],
-  "Lisa": ["Lash Lift & Tint", "Brow Lamination", "Brow Wax & Tint", "Express Facial", "Luxury Facial", "Classic Lash Extensions", "Waxing (from)", "Lash or Brow Tint"],
-};
 
 const TREATMENT_CATEGORIES = [
   { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures, acrylics, BIAB & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
@@ -111,8 +85,7 @@ const css = `
 *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:'Outfit',sans-serif;background:var(--cream);color:var(--charcoal);-webkit-font-smoothing:antialiased}
 .nn-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:24px 48px;display:flex;justify-content:space-between;align-items:center;transition:all .5s cubic-bezier(.22,1,.36,1)}
 .nn-nav.scrolled{background:rgba(250,246,241,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 1px 0 var(--border);padding:16px 48px}
-.nn-logo{height:28px;cursor:pointer;transition:opacity .3s}
-.nn-logo:hover{opacity:.7}
+.nn-logo{height:28px;cursor:pointer;transition:opacity .3s}.nn-logo:hover{opacity:.7}
 .nn-hero-logo{max-width:clamp(280px,50vw,520px);height:auto;opacity:0;transform:translateY(30px);animation:fadeUp 1s cubic-bezier(.22,1,.36,1) .3s forwards}
 .nn-nav-links{display:flex;gap:40px;list-style:none;align-items:center}
 .nn-nav-links li a{text-decoration:none;color:var(--charcoal);font-size:13px;font-weight:400;letter-spacing:1.8px;text-transform:uppercase;cursor:pointer;position:relative;transition:color .3s}
@@ -131,14 +104,10 @@ const css = `
 .nn-hero-address{font-size:13px;font-weight:300;letter-spacing:3px;text-transform:uppercase;color:var(--taupe);margin-top:20px;opacity:0;animation:fadeUp .8s ease .8s forwards}
 .nn-hero-cta{margin-top:52px;display:flex;gap:16px;align-items:center;opacity:0;animation:fadeUp .8s ease 1s forwards;flex-wrap:wrap;justify-content:center}
 .nn-btn{display:inline-block;padding:18px 52px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;letter-spacing:2.5px;text-transform:uppercase;border:none;cursor:pointer;transition:all .4s cubic-bezier(.22,1,.36,1);text-decoration:none}
-.nn-btn-dark{background:var(--charcoal);color:var(--cream)}
-.nn-btn-dark:hover{background:var(--gold);color:var(--charcoal);transform:translateY(-2px);box-shadow:0 12px 32px rgba(201,169,110,.25)}
-.nn-btn-gold{background:var(--gold);color:var(--charcoal)}
-.nn-btn-gold:hover{background:var(--charcoal);color:var(--cream);transform:translateY(-2px)}
-.nn-btn-outline{background:none;border:1.5px solid var(--border);color:var(--charcoal);display:inline-flex;align-items:center;gap:8px;padding:18px 32px}
-.nn-btn-outline:hover{border-color:var(--charcoal)}
-.nn-btn-back{padding:16px 36px;background:none;border:1.5px solid var(--border);font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s;color:var(--charcoal)}
-.nn-btn-back:hover{border-color:var(--charcoal)}
+.nn-btn-dark{background:var(--charcoal);color:var(--cream)}.nn-btn-dark:hover{background:var(--gold);color:var(--charcoal);transform:translateY(-2px);box-shadow:0 12px 32px rgba(201,169,110,.25)}
+.nn-btn-gold{background:var(--gold);color:var(--charcoal)}.nn-btn-gold:hover{background:var(--charcoal);color:var(--cream);transform:translateY(-2px)}
+.nn-btn-outline{background:none;border:1.5px solid var(--border);color:var(--charcoal);display:inline-flex;align-items:center;gap:8px;padding:18px 32px}.nn-btn-outline:hover{border-color:var(--charcoal)}
+.nn-btn-back{padding:16px 36px;background:none;border:1.5px solid var(--border);font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s;color:var(--charcoal)}.nn-btn-back:hover{border-color:var(--charcoal)}
 .nn-divider{display:flex;align-items:center;justify-content:center;gap:16px;padding:0 40px}
 .nn-divider-line{flex:1;height:1px;background:var(--border);max-width:200px}
 .nn-divider-diamond{width:6px;height:6px;background:var(--gold);transform:rotate(45deg)}
@@ -149,71 +118,57 @@ const css = `
 .nn-treat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;margin-top:60px}
 .nn-treat-card{padding:40px 28px;background:var(--warm-white);border:1px solid var(--border);transition:all .5s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
 .nn-treat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gold);transform:scaleX(0);transition:transform .4s}
-.nn-treat-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(44,40,37,.08)}
-.nn-treat-card:hover::before{transform:scaleX(1)}
+.nn-treat-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(44,40,37,.08)}.nn-treat-card:hover::before{transform:scaleX(1)}
 .nn-treat-icon{font-size:14px;color:var(--gold);margin-bottom:16px;letter-spacing:4px}
 .nn-treat-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;margin-bottom:8px}
 .nn-treat-desc{font-size:13px;color:var(--warm-gray);font-weight:300;line-height:1.6;margin-bottom:20px}
 .nn-treat-pracs{display:flex;flex-direction:column;gap:8px}
 .nn-treat-prac-btn{display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:1.5px solid var(--border);cursor:pointer;transition:all .3s;font-family:'Outfit',sans-serif;font-size:13px;font-weight:400;color:var(--charcoal);text-align:left;width:100%}
 .nn-treat-prac-btn:hover{border-color:var(--gold);background:var(--cream)}
-.nn-treat-prac-arrow{margin-left:auto;color:var(--gold);font-size:14px;opacity:0;transition:opacity .3s}
-.nn-treat-prac-btn:hover .nn-treat-prac-arrow{opacity:1}
+.nn-treat-prac-arrow{margin-left:auto;color:var(--gold);font-size:14px;opacity:0;transition:opacity .3s}.nn-treat-prac-btn:hover .nn-treat-prac-arrow{opacity:1}
 .nn-team-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-top:60px}
 .nn-team-card{padding:44px 20px 36px;text-align:center;background:var(--warm-white);border:1px solid var(--border);transition:all .5s cubic-bezier(.22,1,.36,1);cursor:default;position:relative;overflow:hidden}
 .nn-team-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gold);transform:scaleX(0);transition:transform .4s}
-.nn-team-card:hover{transform:translateY(-6px);box-shadow:0 12px 40px rgba(44,40,37,.10)}
-.nn-team-card:hover::before{transform:scaleX(1)}
+.nn-team-card:hover{transform:translateY(-6px);box-shadow:0 12px 40px rgba(44,40,37,.10)}.nn-team-card:hover::before{transform:scaleX(1)}
 .nn-team-avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff;overflow:hidden;background-size:130%;background-position:center 35%}
 .nn-team-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;margin-bottom:6px}
 .nn-team-role{font-size:12px;color:var(--warm-gray);font-weight:300;margin-bottom:4px}
 .nn-insta{padding:80px 48px;text-align:center;background:var(--warm-white);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .nn-insta-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;font-style:italic;margin-bottom:8px}
-.nn-insta a{font-size:14px;color:var(--gold);font-weight:500;text-decoration:none}
-.nn-insta a:hover{text-decoration:underline}
+.nn-insta a{font-size:14px;color:var(--gold);font-weight:500;text-decoration:none}.nn-insta a:hover{text-decoration:underline}
 .nn-insta p{font-size:14px;color:var(--warm-gray);font-weight:300;margin-top:12px}
 .nn-booking{background:var(--warm-white);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .nn-steps{display:flex;gap:6px;margin:0 0 52px;flex-wrap:wrap}
 .nn-step{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:400;color:var(--warm-gray);opacity:.35;transition:all .4s}
-.nn-step.active{opacity:1;color:var(--charcoal)}
-.nn-step.done{opacity:.6;color:var(--gold)}
+.nn-step.active{opacity:1;color:var(--charcoal)}.nn-step.done{opacity:.6;color:var(--gold)}
 .nn-step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;border:1.5px solid var(--border);transition:all .4s}
 .nn-step.active .nn-step-num{background:var(--charcoal);border-color:var(--charcoal);color:var(--cream)}
 .nn-step.done .nn-step-num{background:var(--gold);border-color:var(--gold);color:#fff}
 .nn-step-line{width:28px;height:1px;background:var(--border);margin:0 2px}
 .nn-prac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
 .nn-prac-card{padding:32px 16px;text-align:center;border:1.5px solid var(--border);cursor:pointer;transition:all .35s cubic-bezier(.22,1,.36,1);background:var(--warm-white)}
-.nn-prac-card:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 4px 24px rgba(44,40,37,.06)}
-.nn-prac-card.picked{border-color:var(--charcoal);background:var(--cream)}
+.nn-prac-card:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 4px 24px rgba(44,40,37,.06)}.nn-prac-card.picked{border-color:var(--charcoal);background:var(--cream)}
 .nn-svc-item{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border:1.5px solid var(--border);cursor:pointer;transition:all .3s;margin-bottom:8px;background:var(--warm-white)}
-.nn-svc-item:hover{border-color:var(--gold)}
-.nn-svc-item.picked{border-color:var(--charcoal);background:var(--cream)}
+.nn-svc-item:hover{border-color:var(--gold)}.nn-svc-item.picked{border-color:var(--charcoal);background:var(--cream)}
+.nn-svc-group-label{font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--warm-gray);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .nn-cal{max-width:400px}
 .nn-cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
 .nn-cal-head h3{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400}
-.nn-cal-btn{background:none;border:1px solid var(--border);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:all .2s;color:var(--charcoal)}
-.nn-cal-btn:hover{border-color:var(--charcoal)}
+.nn-cal-btn{background:none;border:1px solid var(--border);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:all .2s;color:var(--charcoal)}.nn-cal-btn:hover{border-color:var(--charcoal)}
 .nn-cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px}
 .nn-cal-weekdays span{text-align:center;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--warm-gray);padding:8px 0}
 .nn-cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .nn-cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:14px;border:none;background:none;cursor:pointer;transition:all .2s;color:var(--charcoal)}
-.nn-cal-day:hover:not(.off):not(.nil){background:var(--blush)}
-.nn-cal-day.on{background:var(--charcoal);color:var(--cream)}
-.nn-cal-day.off{color:var(--border);cursor:default}
-.nn-cal-day.now{font-weight:600;box-shadow:inset 0 -2px 0 var(--gold)}
-.nn-cal-day.nil{cursor:default}
+.nn-cal-day:hover:not(.off):not(.nil){background:var(--blush)}.nn-cal-day.on{background:var(--charcoal);color:var(--cream)}
+.nn-cal-day.off{color:var(--border);cursor:default}.nn-cal-day.now{font-weight:600;box-shadow:inset 0 -2px 0 var(--gold)}.nn-cal-day.nil{cursor:default}
 .nn-times{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:20px}
-.nn-time{padding:13px;text-align:center;font-size:14px;border:1.5px solid var(--border);background:var(--warm-white);cursor:pointer;transition:all .25s}
-.nn-time:hover{border-color:var(--gold)}
-.nn-time.on{border-color:var(--charcoal);background:var(--charcoal);color:var(--cream)}
+.nn-time{padding:13px;text-align:center;font-size:14px;border:1.5px solid var(--border);background:var(--warm-white);cursor:pointer;transition:all .25px}
+.nn-time:hover{border-color:var(--gold)}.nn-time.on{border-color:var(--charcoal);background:var(--charcoal);color:var(--cream)}
 .nn-confirm{max-width:500px;padding:44px;background:var(--cream);border:1px solid var(--border)}
 .nn-confirm-row{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);font-size:15px}
-.nn-confirm-row:last-of-type{border-bottom:none}
-.nn-confirm-label{color:var(--warm-gray);font-weight:300}
-.nn-confirm-val{font-weight:500}
+.nn-confirm-row:last-of-type{border-bottom:none}.nn-confirm-label{color:var(--warm-gray);font-weight:300}.nn-confirm-val{font-weight:500}
 .nn-input{width:100%;padding:14px 18px;border:1.5px solid var(--border);background:var(--warm-white);font-family:'Outfit',sans-serif;font-size:15px;outline:none;transition:border-color .3s;color:var(--charcoal)}
-.nn-input:focus{border-color:var(--gold)}
-.nn-input::placeholder{color:var(--taupe);font-weight:300}
+.nn-input:focus{border-color:var(--gold)}.nn-input::placeholder{color:var(--taupe);font-weight:300}
 .nn-input-label{font-size:12px;color:var(--warm-gray);font-weight:400;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:8px}
 .nn-contact-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-top:48px}
 .nn-contact-block h4{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;margin-bottom:12px}
@@ -239,17 +194,13 @@ const css = `
 .nn-login-sub{font-size:14px;color:var(--warm-gray);text-align:center;margin-bottom:32px;font-weight:300}
 .nn-login-error{padding:12px 16px;background:rgba(196,110,110,.1);color:var(--red);font-size:13px;margin-bottom:16px;border:1px solid rgba(196,110,110,.2)}
 .nn-demo-banner{background:var(--gold);color:var(--charcoal);text-align:center;padding:10px 20px;font-size:13px;font-weight:500;letter-spacing:.5px;position:fixed;bottom:0;left:0;right:0;z-index:200}
-@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
-@keyframes fadeIn{to{opacity:1}}
-.nn-fade{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.22,1,.36,1)}
-.nn-fade.vis{opacity:1;transform:translateY(0)}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{to{opacity:1}}
+.nn-fade{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.22,1,.36,1)}.nn-fade.vis{opacity:1;transform:translateY(0)}
 .nn-success-icon{width:72px;height:72px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 28px;animation:scaleIn .5s cubic-bezier(.22,1,.36,1)}
 @keyframes scaleIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
 @media(max-width:900px){.nn-team-grid{grid-template-columns:repeat(3,1fr)}.nn-contact-grid{grid-template-columns:1fr}}
 @media(max-width:768px){.nn-nav{padding:16px 24px}.nn-nav.scrolled{padding:12px 24px}.nn-nav-links{display:none}.nn-mobile-toggle{display:block}.nn-section{padding:60px 24px}.nn-team-grid{grid-template-columns:repeat(2,1fr)}.nn-prac-grid{grid-template-columns:repeat(2,1fr)}.nn-times{grid-template-columns:repeat(2,1fr)}.nn-confirm{padding:28px}.nn-hero{padding:120px 24px 80px}.nn-insta{padding:60px 24px}.nn-dash{padding:20px}}
 `;
-
-// ─── Data Hooks ───────────────────────────────────────────────────────────────
 
 function usePractitioners() {
   const [data, setData] = useState([]);
@@ -277,13 +228,11 @@ function useAvailableSlots(pracId, date, duration) {
   return { slots, loading };
 }
 
-// ─── Public Components ────────────────────────────────────────────────────────
-
 function Nav({ scrolled, onNav, onBook, onDash }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <>
-      <nav className={`nn-nav ${scrolled ? "scrolled" : ""}`}>
+      <nav className={"nn-nav" + (scrolled ? " scrolled" : "")}>
         <img src="/logo-dark.png" alt="ninety nine." className="nn-logo" onClick={() => onNav("home")} />
         <ul className="nn-nav-links">
           <li><a onClick={() => onNav("services")}>Services</a></li>
@@ -306,7 +255,7 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
             { label:"Team", action:() => { onNav("team"); setMobileOpen(false); }},
             { label:"Contact", action:() => { onNav("contact"); setMobileOpen(false); }},
           ].map(item => (
-            <button key={item.label} onClick={item.action} style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"'Cormorant Garamond',serif", fontSize:42, fontWeight:300, fontStyle:"italic", color:"var(--charcoal)", padding:"12px 0", letterSpacing:"1px" }}>{item.label}</button>
+            <button key={item.label} onClick={item.action} style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"'Cormorant Garamond',serif", fontSize:42, fontWeight:300, fontStyle:"italic", color:"var(--charcoal)", padding:"12px 0" }}>{item.label}</button>
           ))}
           <div style={{ width:40, height:1, background:"var(--border)", margin:"16px 0" }}/>
           <button onClick={() => { onBook(); setMobileOpen(false); }} style={{ padding:"16px 48px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2.5px", textTransform:"uppercase" }}>Book Now</button>
@@ -342,20 +291,20 @@ function Divider() {
 }
 
 function ServicesList({ practitioners, onBookWith }) {
-  const findPrac = (name) => practitioners.find((p) => p.name === name);
+  const findPrac = (name) => practitioners.find(p => p.name === name);
   return (
     <section className="nn-section" id="services">
       <div className="nn-section-label">Our Services</div>
       <h2 className="nn-section-title">Treatments</h2>
       <p className="nn-section-desc">From gel manicures to luxury facials, every treatment is delivered with care in our warm, welcoming space on Banks Road. Tap a name to book.</p>
       <div className="nn-treat-grid">
-        {TREATMENT_CATEGORIES.map((cat) => (
+        {TREATMENT_CATEGORIES.map(cat => (
           <div className="nn-treat-card" key={cat.id}>
             <div className="nn-treat-icon">{cat.icon}</div>
             <div className="nn-treat-title">{cat.title}</div>
             <div className="nn-treat-desc">{cat.description}</div>
             <div className="nn-treat-pracs">
-              {cat.practitioners.map((name) => {
+              {cat.practitioners.map(name => {
                 const p = findPrac(name);
                 return (
                   <button key={name} className="nn-treat-prac-btn" onClick={() => { if (p) onBookWith(p); }}>
@@ -379,10 +328,10 @@ function TeamSection({ practitioners }) {
       <h2 className="nn-section-title">Meet the Girls</h2>
       <p className="nn-section-desc">Each of our talented practitioners is self-employed, bringing their own unique expertise and loyal clientele to ninety nine.</p>
       <div className="nn-team-grid">
-        {practitioners.map((p) => (
+        {practitioners.map(p => (
           <div className="nn-team-card" key={p.id} style={p.name === "Kristen" ? { border:"2px solid var(--gold)" } : {}}>
             {p.photo
-              ? <div className="nn-team-avatar" style={{ backgroundImage:`url(${p.photo})` }}/>
+              ? <div className="nn-team-avatar" style={{ backgroundImage:"url(" + p.photo + ")" }}/>
               : <div className="nn-team-avatar" style={{ background:p.color }}>{p.name[0]}</div>
             }
             <div className="nn-team-name">{p.name}</div>
@@ -397,7 +346,27 @@ function TeamSection({ practitioners }) {
   );
 }
 
-// ─── Booking Flow ─────────────────────────────────────────────────────────────
+function SvcItem({ s, picked, onSelect }) {
+  return (
+    <div className={"nn-svc-item" + (picked ? " picked" : "")} onClick={() => onSelect(s)}>
+      <div>
+        <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
+        {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
+        <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
+        {s.addon && <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>+ {s.addon.title} available as add-on</div>}
+      </div>
+      <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
+    </div>
+  );
+}
+
+function ServiceGroup({ services, selectedId, onSelect }) {
+  return (
+    <>
+      {services.map(s => <SvcItem key={s.id} s={s} picked={selectedId === s.id} onSelect={onSelect}/>)}
+    </>
+  );
+}
 
 function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const [step, setStep] = useState(preselectedPrac ? 2 : 1);
@@ -408,7 +377,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const [time, setTime] = useState(null);
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [name, setName] = useState("");
+  const [clientName, setClientName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [customServices, setCustomServices] = useState([]);
@@ -420,31 +389,19 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
 
   useEffect(() => {
     if (preselectedPrac) {
-      setPrac(preselectedPrac);
-      setStep(2);
-      setSvc(null);
-      setAddon(null);
-      setDate(null);
-      setTime(null);
-      setDone(false);
+      setPrac(preselectedPrac); setStep(2); setSvc(null); setAddon(null);
+      setDate(null); setTime(null); setDone(false);
       if (onClearPreselect) onClearPreselect();
     }
   }, [preselectedPrac]);
 
   useEffect(() => {
     if (!prac) { setCustomServices([]); return; }
-    if (IS_DEMO) {
-      const names = PRACTITIONER_SERVICE_LIST[prac.name] || [];
-      const all = [...DEMO_SERVICES.nails, ...DEMO_SERVICES.beauty];
-      setCustomServices(all.filter(s => names.includes(s.name)).map(s => ({
-        id: s.id, title: s.name, description: "", duration: s.duration, price: s.price, addon: null
-      })));
-      return;
-    }
+    if (IS_DEMO) { setCustomServices(DEMO_SERVICES_LIST); return; }
     setLoadingServices(true);
     supabase.query("custom_services", {
       select: "*,addon:custom_service_addons(*)",
-      filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=created_at",
+      filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
     }).then(rows => {
       setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
       setLoadingServices(false);
@@ -457,27 +414,24 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const dateStep = svc?.addon ? 4 : 3;
   const confirmStep = svc?.addon ? 5 : 4;
 
+  const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
+  const ungrouped = customServices.filter(s => !s.group_name);
+
+  function handleSelectService(s) { setSvc(s); setAddon(null); }
+
   async function handleConfirm() {
     if (IS_DEMO) { setDone(true); return; }
     setSaving(true);
     try {
       await supabase.insert("bookings", {
-        practitioner_id: prac.id,
-        service_id: svc.id,
-        client_name: name,
-        client_phone: phone,
-        client_email: email,
+        practitioner_id: prac.id, service_id: svc.id,
+        client_name: clientName, client_phone: phone, client_email: email,
         booking_date: dateStr(date.year, date.month, date.day),
-        booking_time: time + ":00",
-        duration: totalDuration,
-        price: totalPrice,
+        booking_time: time + ":00", duration: totalDuration, price: totalPrice,
         notes: addon ? "Add-on: " + addon.title : "",
       });
       setDone(true);
-    } catch (e) {
-      console.error(e);
-      alert("Sorry, there was an error creating your booking. Please try again.");
-    }
+    } catch (e) { console.error(e); alert("Sorry, there was an error creating your booking. Please try again."); }
     setSaving(false);
   }
 
@@ -487,7 +441,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
         <div className="nn-success-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, textAlign:"center", marginBottom:10 }}>You're all booked</h2>
         <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.6 }}>
-          {name}, your appointment with {prac.name} is confirmed for {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} at {time}.<br/>See you at 99 Banks Road!
+          {clientName}, your appointment with {prac.name} is confirmed for {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} at {time}.<br/>See you at 99 Banks Road!
         </p>
       </div>
     );
@@ -501,8 +455,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
         {labels.map((l, i) => (
           <React.Fragment key={i}>
             {i > 0 && <div className="nn-step-line"/>}
-            <div className={"nn-step" + (step === i+1 ? " active" : "") + (step > i+1 ? " done" : "")}>
-              <div className="nn-step-num">{step > i+1 ? "✓" : i+1}</div><span>{l}</span>
+            <div className={"nn-step" + (step===i+1?" active":"") + (step>i+1?" done":"")}>
+              <div className="nn-step-num">{step>i+1?"✓":i+1}</div><span>{l}</span>
             </div>
           </React.Fragment>
         ))}
@@ -513,9 +467,9 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           <H3>Who would you like to see?</H3>
           <div className="nn-prac-grid">
             {practitioners.map(p => (
-              <div key={p.id} className={"nn-prac-card" + (prac?.id===p.id ? " picked" : "")} onClick={() => setPrac(p)}>
+              <div key={p.id} className={"nn-prac-card"+(prac?.id===p.id?" picked":"")} onClick={() => setPrac(p)}>
                 {p.photo
-                  ? <div className="nn-team-avatar" style={{ backgroundImage:"url(" + p.photo + ")", width:48, height:48, margin:"0 auto 14px" }}/>
+                  ? <div className="nn-team-avatar" style={{ backgroundImage:"url("+p.photo+")", width:48, height:48, margin:"0 auto 14px" }}/>
                   : <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
                 }
                 <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:400, marginBottom:4 }}>{p.name}</div>
@@ -537,52 +491,27 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           ) : customServices.length === 0 ? (
             <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>No services available yet. Please DM us on Instagram.</div>
           ) : (
-             {(() => {
-  const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
-  const ungrouped = customServices.filter(s => !s.group_name);
-  return (
-    <>
-      {groups.map(group => (
-        <div key={group} style={{ marginBottom:24 }}>
-          <div style={{ fontSize:11, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", color:"var(--warm-gray)", marginBottom:10, paddingBottom:8, borderBottom:"1px solid var(--border)" }}>
-            {group}
-          </div>
-          {customServices.filter(s => s.group_name === group).map(s => (
-            <div key={s.id} className={"nn-svc-item"+(svc?.id===s.id?" picked":"")} onClick={() => { setSvc(s); setAddon(null); }}>
-              <div>
-                <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
-                {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
-                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
-                {s.addon && <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>+ {s.addon.title} available as add-on</div>}
-              </div>
-              <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
-            </div>
-          ))}
-        </div>
-      ))}
-      {ungrouped.length > 0 && (
-        <div>
-          {groups.length > 0 && (
-            <div style={{ fontSize:11, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", color:"var(--warm-gray)", marginBottom:10, paddingBottom:8, borderBottom:"1px solid var(--border)" }}>
-              Other
+            <div>
+              {groups.map(group => (
+                <div key={group} style={{ marginBottom:24 }}>
+                  <div className="nn-svc-group-label">{group}</div>
+                  <ServiceGroup services={customServices.filter(s => s.group_name===group)} selectedId={svc?.id} onSelect={handleSelectService}/>
+                </div>
+              ))}
+              {ungrouped.length > 0 && (
+                <div>
+                  {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
+                  <ServiceGroup services={ungrouped} selectedId={svc?.id} onSelect={handleSelectService}/>
+                </div>
+              )}
             </div>
           )}
-          {ungrouped.map(s => (
-            <div key={s.id} className={"nn-svc-item"+(svc?.id===s.id?" picked":"")} onClick={() => { setSvc(s); setAddon(null); }}>
-              <div>
-                <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
-                {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
-                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
-                {s.addon && <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>+ {s.addon.title} available as add-on</div>}
-              </div>
-              <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
-            </div>
-          ))}
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => { if (svc?.addon) setStep(3); else setStep(dateStep); }} disabled={!svc} style={{ opacity:svc?1:.35 }}>Continue</button>
+          </div>
         </div>
       )}
-    </>
-  );
-})()}
 
       {step === 3 && svc?.addon && (
         <div>
@@ -590,18 +519,12 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:28, lineHeight:1.7 }}>
             You can add the following optional extra to your {svc.title} appointment.
           </p>
-          <div className={"nn-svc-item" + (addon===null ? " picked" : "")} onClick={() => setAddon(null)} style={{ marginBottom:8 }}>
-            <div>
-              <div style={{ fontWeight:500 }}>No add-on</div>
-              <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Just the {svc.title}</div>
-            </div>
+          <div className={"nn-svc-item"+(addon===null?" picked":"")} onClick={() => setAddon(null)} style={{ marginBottom:8 }}>
+            <div><div style={{ fontWeight:500 }}>No add-on</div><div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Just the {svc.title}</div></div>
             <div style={{ fontSize:14, color:"var(--warm-gray)" }}>—</div>
           </div>
-          <div className={"nn-svc-item" + (addon?.id===svc.addon.id ? " picked" : "")} onClick={() => setAddon(svc.addon)}>
-            <div>
-              <div style={{ fontWeight:500 }}>{svc.addon.title}</div>
-              <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{svc.addon.duration} min extra</div>
-            </div>
+          <div className={"nn-svc-item"+(addon?.id===svc.addon.id?" picked":"")} onClick={() => setAddon(svc.addon)}>
+            <div><div style={{ fontWeight:500 }}>{svc.addon.title}</div><div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{svc.addon.duration} min extra</div></div>
             <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>+£{svc.addon.price}</div>
           </div>
           <div className="nn-booking-nav">
@@ -656,7 +579,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
             )}
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(svc?.addon ? 3 : 2)}>Back</button>
+            <button className="nn-btn-back" onClick={() => setStep(svc?.addon?3:2)}>Back</button>
             <button className="nn-btn nn-btn-dark" onClick={() => setStep(confirmStep)} disabled={!date||!time} style={{ opacity:date&&time?1:.35 }}>Continue</button>
           </div>
         </div>
@@ -674,14 +597,14 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
             <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{totalDuration} min</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Price</span><span className="nn-confirm-val">£{totalPrice}</span></div>
             <div style={{ marginTop:28, display:"flex", flexDirection:"column", gap:16 }}>
-              <div><label className="nn-input-label">Your Name</label><input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"/></div>
+              <div><label className="nn-input-label">Your Name</label><input className="nn-input" type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full name"/></div>
               <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx"/></div>
               <div><label className="nn-input-label">Email (optional)</label><input className="nn-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="for confirmation email"/></div>
             </div>
           </div>
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => setStep(dateStep)}>Back</button>
-            <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!name||!phone||saving} style={{ opacity:name&&phone&&!saving?1:.35 }}>
+            <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!clientName||!phone||saving} style={{ opacity:clientName&&phone&&!saving?1:.35 }}>
               {saving ? "Booking..." : "Confirm Booking"}
             </button>
           </div>
@@ -690,8 +613,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
     </div>
   );
 }
-
-// ─── Service Form (Dashboard) ─────────────────────────────────────────────────
 
 function ServiceForm({ practitionerId, token, existingService, existingGroups, onSave, onCancel }) {
   const [title, setTitle] = useState(existingService?.title || "");
@@ -706,7 +627,6 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
   const [addonDuration, setAddonDuration] = useState(existingService?.addon?.duration?.toString() || "15");
   const [addonPrice, setAddonPrice] = useState(existingService?.addon?.price?.toString() || "");
   const [saving, setSaving] = useState(false);
-
   const finalGroupName = showNewGroup ? newGroupName : groupName;
 
   async function handleSave() {
@@ -716,37 +636,33 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
       let serviceId = existingService?.id;
       if (existingService) {
         await supabase.update("custom_services",
-          { title, description, duration: parseInt(duration), price: parseFloat(price), group_name: finalGroupName || null },
-          "id=eq." + existingService.id, token);
+          { title, description, duration:parseInt(duration), price:parseFloat(price), group_name:finalGroupName||null },
+          "id=eq."+existingService.id, token);
       } else {
         const res = await supabase.insert("custom_services", {
-          practitioner_id: practitionerId, title, description,
-          duration: parseInt(duration), price: parseFloat(price),
-          group_name: finalGroupName || null,
+          practitioner_id:practitionerId, title, description,
+          duration:parseInt(duration), price:parseFloat(price), group_name:finalGroupName||null,
         }, token);
         serviceId = res[0].id;
       }
       if (hasAddon && addonTitle && addonDuration && addonPrice) {
         if (existingService?.addon) {
           await supabase.update("custom_service_addons",
-            { title: addonTitle, duration: parseInt(addonDuration), price: parseFloat(addonPrice) },
-            "id=eq." + existingService.addon.id, token);
+            { title:addonTitle, duration:parseInt(addonDuration), price:parseFloat(addonPrice) },
+            "id=eq."+existingService.addon.id, token);
         } else {
           await supabase.insert("custom_service_addons", {
-            service_id: serviceId, title: addonTitle,
-            duration: parseInt(addonDuration), price: parseFloat(addonPrice),
+            service_id:serviceId, title:addonTitle,
+            duration:parseInt(addonDuration), price:parseFloat(addonPrice),
           }, token);
         }
       } else if (!hasAddon && existingService?.addon) {
-        await fetch(SUPABASE_URL + "/rest/v1/custom_service_addons?id=eq." + existingService.addon.id, {
-          method: "DELETE", headers: supabase.headers(token),
+        await fetch(SUPABASE_URL+"/rest/v1/custom_service_addons?id=eq."+existingService.addon.id, {
+          method:"DELETE", headers:supabase.headers(token),
         });
       }
       onSave();
-    } catch (e) {
-      console.error(e);
-      alert("Error saving service. Please try again.");
-    }
+    } catch (e) { console.error(e); alert("Error saving service. Please try again."); }
     setSaving(false);
   }
 
@@ -756,8 +672,6 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
         {existingService ? "Edit service" : "Add a service"}
       </div>
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-
-        {/* Group selector */}
         <div>
           <label className="nn-input-label">Group (optional)</label>
           {!showNewGroup ? (
@@ -765,9 +679,7 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
               <select value={groupName} onChange={e => setGroupName(e.target.value)}
                 style={{ flex:1, padding:"14px 18px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:15, outline:"none", color:"var(--charcoal)", cursor:"pointer" }}>
                 <option value="">No group</option>
-                {existingGroups.map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
               <button onClick={() => { setShowNewGroup(true); setGroupName(""); }}
                 style={{ padding:"14px 20px", background:"none", border:"1.5px solid var(--border)", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1px", textTransform:"uppercase", color:"var(--charcoal)", whiteSpace:"nowrap" }}>
@@ -784,29 +696,14 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
             </div>
           )}
         </div>
-
-        <div>
-          <label className="nn-input-label">Service Title</label>
-          <input className="nn-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. BIAB Overlay"/>
-        </div>
-        <div>
-          <label className="nn-input-label">Description (optional)</label>
-          <input className="nn-input" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Includes removal of previous set"/>
-        </div>
+        <div><label className="nn-input-label">Service Title</label><input className="nn-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. BIAB Overlay"/></div>
+        <div><label className="nn-input-label">Description (optional)</label><input className="nn-input" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Includes removal of previous set"/></div>
         <div style={{ display:"flex", gap:16 }}>
-          <div style={{ flex:1 }}>
-            <label className="nn-input-label">Duration (minutes)</label>
-            <input className="nn-input" type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45"/>
-          </div>
-          <div style={{ flex:1 }}>
-            <label className="nn-input-label">Price (£)</label>
-            <input className="nn-input" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="30"/>
-          </div>
+          <div style={{ flex:1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45"/></div>
+          <div style={{ flex:1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="30"/></div>
         </div>
-
-        {/* Add-on toggle */}
         <div style={{ padding:"16px 20px", background:"var(--warm-white)", border:"1px solid var(--border)" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:hasAddon ? 16 : 0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:hasAddon?16:0 }}>
             <div>
               <div style={{ fontSize:14, fontWeight:500 }}>Optional add-on</div>
               <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>e.g. Nail Art, Brow Tint</div>
@@ -817,29 +714,19 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
           </div>
           {hasAddon && (
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              <div>
-                <label className="nn-input-label">Add-on Title</label>
-                <input className="nn-input" type="text" value={addonTitle} onChange={e => setAddonTitle(e.target.value)} placeholder="e.g. Nail Art"/>
-              </div>
+              <div><label className="nn-input-label">Add-on Title</label><input className="nn-input" type="text" value={addonTitle} onChange={e => setAddonTitle(e.target.value)} placeholder="e.g. Nail Art"/></div>
               <div style={{ display:"flex", gap:16 }}>
-                <div style={{ flex:1 }}>
-                  <label className="nn-input-label">Duration (minutes)</label>
-                  <input className="nn-input" type="number" value={addonDuration} onChange={e => setAddonDuration(e.target.value)} placeholder="15"/>
-                </div>
-                <div style={{ flex:1 }}>
-                  <label className="nn-input-label">Price (£)</label>
-                  <input className="nn-input" type="number" value={addonPrice} onChange={e => setAddonPrice(e.target.value)} placeholder="10"/>
-                </div>
+                <div style={{ flex:1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={addonDuration} onChange={e => setAddonDuration(e.target.value)} placeholder="15"/></div>
+                <div style={{ flex:1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={addonPrice} onChange={e => setAddonPrice(e.target.value)} placeholder="10"/></div>
               </div>
             </div>
           )}
         </div>
-
         <div style={{ display:"flex", gap:12, marginTop:8 }}>
           <button onClick={onCancel} className="nn-btn-back">Cancel</button>
           <button onClick={handleSave} disabled={!title||!duration||!price||saving}
             style={{ padding:"14px 32px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", opacity:title&&duration&&price&&!saving?1:.35 }}>
-            {saving ? "Saving..." : existingService ? "Save Changes" : "Add Service"}
+            {saving?"Saving...":existingService?"Save Changes":"Add Service"}
           </button>
         </div>
       </div>
@@ -847,7 +734,27 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+function ServiceCard({ svc, onEdit, onRemove }) {
+  return (
+    <div style={{ padding:"18px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8, display:"flex", alignItems:"flex-start", gap:16 }}>
+      <div style={{ flex:1 }}>
+        <div style={{ fontWeight:500, fontSize:14 }}>{svc.title}</div>
+        {svc.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{svc.description}</div>}
+        <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{svc.duration} min · £{svc.price}</div>
+        {svc.addon && (
+          <div style={{ marginTop:8, padding:"8px 12px", background:"var(--cream)", border:"1px solid var(--border)", fontSize:12 }}>
+            <span style={{ color:"var(--gold)", fontWeight:500 }}>+ Add-on: </span>
+            {svc.addon.title} · {svc.addon.duration} min · £{svc.addon.price}
+          </div>
+        )}
+      </div>
+      <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+        <button onClick={onEdit} style={{ padding:"6px 14px", background:"none", color:"var(--charcoal)", border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Edit</button>
+        <button onClick={onRemove} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Remove</button>
+      </div>
+    </div>
+  );
+}
 
 function Dashboard({ onBack }) {
   const [auth, setAuth] = useState(null);
@@ -858,24 +765,17 @@ function Dashboard({ onBack }) {
   const [tab, setTab] = useState("bookings");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // Services state
   const [customServices, setCustomServices] = useState([]);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingCustomService, setEditingCustomService] = useState(null);
-
-  // Schedule state
   const [availability, setAvailability] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
-  const [schedSaving, setSchedSaving] = useState(false);
   const [newBlock, setNewBlock] = useState("");
   const [blockSaving, setBlockSaving] = useState(false);
-
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
   async function handleLogin(e) {
-    e.preventDefault();
-    setLoginErr("");
+    e.preventDefault(); setLoginErr("");
     if (IS_DEMO) { setAuth({ access_token:"demo" }); setPrac(DEMO_PRACTITIONERS[0]); return; }
     try {
       const session = await supabase.signIn(loginEmail, loginPass);
@@ -886,103 +786,84 @@ function Dashboard({ onBack }) {
     } catch (e) { setLoginErr(e.message); }
   }
 
-  // Load bookings
   useEffect(() => {
     if (!auth || !prac || tab !== "bookings") return;
     if (IS_DEMO) {
       setBookings([
-        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:"2026-03-20", booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service:{ name:"Gel Manicure" } },
-        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:"2026-03-20", booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service:{ name:"Lash Lift & Tint" } },
+        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:"2026-03-22", booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service:{ name:"Gel Manicure" } },
+        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:"2026-03-22", booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service:{ name:"Lash Lift & Tint" } },
       ]);
       return;
     }
     setLoading(true);
     const today = new Date().toISOString().split("T")[0];
     supabase.query("bookings", {
-      select: "*,service:services(name)",
-      filters: "&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
-      token: auth.access_token,
+      select:"*,service:services(name)",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
+      token:auth.access_token,
     }).then(setBookings).catch(console.error).finally(() => setLoading(false));
   }, [auth, prac, tab]);
 
-  // Load custom services
   useEffect(() => {
     if (!auth || !prac || tab !== "services") return;
     if (IS_DEMO) { setCustomServices([]); return; }
-    supabase.query("custom_services", {
-      select: "*,addon:custom_service_addons(*)",
-      filters: "&practitioner_id=eq."+prac.id+"&is_active=eq.true&order=created_at",
-      token: auth.access_token,
-    }).then(rows => {
-      setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
-    }).catch(console.error);
+    loadServices();
   }, [auth, prac, tab]);
 
-  function refreshServices() {
+  function loadServices() {
     if (!auth || !prac) return;
     supabase.query("custom_services", {
-      select: "*,addon:custom_service_addons(*)",
-      filters: "&practitioner_id=eq."+prac.id+"&is_active=eq.true&order=created_at",
-      token: auth.access_token,
-    }).then(rows => {
-      setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
-    }).catch(console.error);
+      select:"*,addon:custom_service_addons(*)",
+      filters:"&practitioner_id=eq."+prac.id+"&is_active=eq.true&order=group_order,service_order,created_at",
+      token:auth.access_token,
+    }).then(rows => setCustomServices(rows.map(s => ({ ...s, addon:s.addon?.[0]||null })))).catch(console.error);
   }
-  
+
   const existingGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
 
-  // Load schedule
   useEffect(() => {
     if (!auth || !prac || tab !== "schedule") return;
     if (IS_DEMO) {
       setAvailability(DAY_NAMES.map((_,i) => ({ day_of_week:i, start_time:"09:00", end_time:i<5?"17:30":"17:00", is_available:i<6 })));
-      setBlockedDates([]);
-      return;
+      setBlockedDates([]); return;
     }
     Promise.all([
       supabase.query("availability", { filters:"&practitioner_id=eq."+prac.id+"&order=day_of_week", token:auth.access_token }),
       supabase.query("blocked_dates", { filters:"&practitioner_id=eq."+prac.id+"&blocked_date=gte."+new Date().toISOString().split("T")[0]+"&order=blocked_date", token:auth.access_token }),
     ]).then(([avail, blocked]) => {
       const filled = DAY_NAMES.map((_,i) => avail.find(a => a.day_of_week===i) || { day_of_week:i, start_time:"09:00", end_time:"17:30", is_available:false });
-      setAvailability(filled);
-      setBlockedDates(blocked);
+      setAvailability(filled); setBlockedDates(blocked);
     }).catch(console.error);
   }, [auth, prac, tab]);
 
   async function updateStatus(bookingId, status) {
-    if (IS_DEMO) { setBookings(prev => prev.map(b => b.id===bookingId ? { ...b, status } : b)); return; }
+    if (IS_DEMO) { setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b)); return; }
     await supabase.update("bookings", { status }, "id=eq."+bookingId, auth.access_token);
-    setBookings(prev => prev.map(b => b.id===bookingId ? { ...b, status } : b));
+    setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b));
   }
 
   async function saveAvailability(day) {
     const row = availability[day];
-    setSchedSaving(true);
-    if (IS_DEMO) { setSchedSaving(false); return; }
+    if (IS_DEMO) return;
     try {
       const res = await fetch(SUPABASE_URL+"/rest/v1/availability?practitioner_id=eq."+prac.id+"&day_of_week=eq."+day, {
         method:"PATCH", headers:{ ...supabase.headers(auth.access_token), Prefer:"return=representation" },
-        body: JSON.stringify({ is_available:row.is_available, start_time:row.start_time, end_time:row.end_time }),
+        body:JSON.stringify({ is_available:row.is_available, start_time:row.start_time, end_time:row.end_time }),
       });
-      if (!res.ok) {
-        await supabase.insert("availability", { practitioner_id:prac.id, day_of_week:day, start_time:row.start_time, end_time:row.end_time, is_available:row.is_available }, auth.access_token);
-      }
+      if (!res.ok) await supabase.insert("availability", { practitioner_id:prac.id, day_of_week:day, start_time:row.start_time, end_time:row.end_time, is_available:row.is_available }, auth.access_token);
     } catch (e) { console.error(e); }
-    setSchedSaving(false);
   }
 
   function updateAvail(day, field, value) {
-    setAvailability(prev => prev.map((r,i) => i===day ? { ...r, [field]:value } : r));
+    setAvailability(prev => prev.map((r,i) => i===day?{...r,[field]:value}:r));
   }
 
   async function addBlockedDate() {
-    if (!newBlock) return;
-    setBlockSaving(true);
+    if (!newBlock) return; setBlockSaving(true);
     if (IS_DEMO) { setBlockedDates(prev => [...prev, { id:Date.now(), blocked_date:newBlock }]); setNewBlock(""); setBlockSaving(false); return; }
     try {
       const res = await supabase.insert("blocked_dates", { practitioner_id:prac.id, blocked_date:newBlock }, auth.access_token);
-      setBlockedDates(prev => [...prev, res[0]]);
-      setNewBlock("");
+      setBlockedDates(prev => [...prev, res[0]]); setNewBlock("");
     } catch (e) { console.error(e); }
     setBlockSaving(false);
   }
@@ -1002,7 +883,7 @@ function Dashboard({ onBack }) {
           <div className="nn-login-title">Staff Login</div>
           <div className="nn-login-sub">ninety nine. practitioner portal</div>
           {loginErr && <div className="nn-login-error">{loginErr}</div>}
-          <div onKeyDown={e => e.key==="Enter" && handleLogin(e)} style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div onKeyDown={e => e.key==="Enter"&&handleLogin(e)} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div><label className="nn-input-label">Email</label><input className="nn-input" type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="your@email.com"/></div>
             <div><label className="nn-input-label">Password</label><input className="nn-input" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} placeholder="••••••••"/></div>
             <button className="nn-btn nn-btn-dark" onClick={handleLogin} style={{ width:"100%", marginTop:8 }}>Sign In</button>
@@ -1014,7 +895,9 @@ function Dashboard({ onBack }) {
     );
   }
 
-  const upcoming = bookings.filter(b => b.status === "confirmed");
+  const upcoming = bookings.filter(b => b.status==="confirmed");
+  const dashGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
+  const dashUngrouped = customServices.filter(s => !s.group_name);
 
   return (
     <div className="nn-dash">
@@ -1030,7 +913,7 @@ function Dashboard({ onBack }) {
       </div>
 
       <div className="nn-dash-tabs">
-        <button className={"nn-dash-tab"+(tab==="bookings"?" on":"")} onClick={() => setTab("bookings")}>Bookings {tab==="bookings"&&upcoming.length>0 ? "("+upcoming.length+")" : ""}</button>
+        <button className={"nn-dash-tab"+(tab==="bookings"?" on":"")} onClick={() => setTab("bookings")}>Bookings {tab==="bookings"&&upcoming.length>0?"("+upcoming.length+")":""}</button>
         <button className={"nn-dash-tab"+(tab==="services"?" on":"")} onClick={() => setTab("services")}>My Services</button>
         <button className={"nn-dash-tab"+(tab==="schedule"?" on":"")} onClick={() => setTab("schedule")}>My Schedule</button>
       </div>
@@ -1046,7 +929,7 @@ function Dashboard({ onBack }) {
               <div className="nn-booking-card" key={b.id}>
                 <div>
                   <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
-                  <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service?.name || "Service"} · {b.duration} min · £{b.price}</div>
+                  <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service?.name||"Service"} · {b.duration} min · £{b.price}</div>
                   <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1067,62 +950,51 @@ function Dashboard({ onBack }) {
           <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
-          {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
+          {customServices.length===0 && !showServiceForm && !editingCustomService ? (
             <div style={{ padding:"32px 0", color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>No services yet — add your first service below.</div>
           ) : (
             <div style={{ marginBottom:24 }}>
-              {customServices.map(svc => (
-                <div key={svc.id}>
-                  {editingCustomService?.id === svc.id ? (
-                    <ServiceForm
-  practitionerId={prac.id}
-  token={auth.access_token}
-  existingService={existingService={null} // or null
-  existingGroups={existingGroups}
-  onSave={() => { setEditingCustomService(null); refreshServices(); }}
-  onCancel={() => setEditingCustomService(null)}
-/>
-                  ) : (
-                    <div style={{ padding:"18px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8, display:"flex", alignItems:"flex-start", gap:16 }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:500, fontSize:14 }}>{svc.title}</div>
-                        {svc.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{svc.description}</div>}
-                        <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{svc.duration} min · £{svc.price}</div>
-                        {svc.addon && (
-                          <div style={{ marginTop:8, padding:"8px 12px", background:"var(--cream)", border:"1px solid var(--border)", fontSize:12 }}>
-                            <span style={{ color:"var(--gold)", fontWeight:500 }}>+ Add-on: </span>
-                            {svc.addon.title} · {svc.addon.duration} min · £{svc.addon.price}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                        <button onClick={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
-                          style={{ padding:"6px 14px", background:"none", color:"var(--charcoal)", border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Edit</button>
-                        <button onClick={async () => {
-                          await supabase.update("custom_services", { is_active:false }, "id=eq."+svc.id, auth.access_token);
-                          setCustomServices(prev => prev.filter(s => s.id !== svc.id));
-                        }} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Remove</button>
-                      </div>
+              {dashGroups.map(group => (
+                <div key={group} style={{ marginBottom:24 }}>
+                  <div style={{ fontSize:11, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", color:"var(--warm-gray)", marginBottom:10, paddingBottom:8, borderBottom:"1px solid var(--border)" }}>{group}</div>
+                  {customServices.filter(s => s.group_name===group).map(svc => (
+                    <div key={svc.id}>
+                      {editingCustomService?.id===svc.id ? (
+                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
+                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)}/>
+                      ) : (
+                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
+                          onRemove={async () => { await supabase.update("custom_services",{is_active:false},"id=eq."+svc.id,auth.access_token); setCustomServices(prev => prev.filter(s => s.id!==svc.id)); }}/>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               ))}
+              {dashUngrouped.length > 0 && (
+                <div>
+                  {dashGroups.length > 0 && <div style={{ fontSize:11, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", color:"var(--warm-gray)", marginBottom:10, paddingBottom:8, borderBottom:"1px solid var(--border)" }}>Other</div>}
+                  {dashUngrouped.map(svc => (
+                    <div key={svc.id}>
+                      {editingCustomService?.id===svc.id ? (
+                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
+                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)}/>
+                      ) : (
+                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
+                          onRemove={async () => { await supabase.update("custom_services",{is_active:false},"id=eq."+svc.id,auth.access_token); setCustomServices(prev => prev.filter(s => s.id!==svc.id)); }}/>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {showServiceForm ? (
-            <ServiceForm
-  practitionerId={prac.id}
-  token={auth.access_token}
-  existingService={null} // or null
-  existingGroups={existingGroups}
-  onSave={() => { setShowServiceForm(false); refreshServices(); }}
-  onCancel={() => setShowServiceForm(false)}
-/>
+            <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
+              onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)}/>
           ) : (
             !editingCustomService && (
               <button onClick={() => setShowServiceForm(true)} style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 24px", background:"none", border:"1.5px dashed var(--border)", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:500, color:"var(--charcoal)", width:"100%" }}>
-                <span style={{ fontSize:18, color:"var(--gold)", lineHeight:1 }}>+</span>
-                Add a service
+                <span style={{ fontSize:18, color:"var(--gold)", lineHeight:1 }}>+</span>Add a service
               </button>
             )
           )}
@@ -1131,9 +1003,7 @@ function Dashboard({ onBack }) {
 
       {tab === "schedule" && (
         <div style={{ maxWidth:680 }}>
-          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
-            Set your working days and hours. Block out specific dates for holidays or days off.
-          </p>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>Set your working days and hours. Block out specific dates for holidays or days off.</p>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:20, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Weekly Hours
           </div>
@@ -1158,7 +1028,6 @@ function Dashboard({ onBack }) {
               {!row.is_available && <span style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Not working</span>}
             </div>
           ))}
-
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Blocked Dates
           </div>
@@ -1166,25 +1035,20 @@ function Dashboard({ onBack }) {
             <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ flex:1, padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}/>
             <button onClick={addBlockedDate} disabled={!newBlock||blockSaving} style={{ padding:"12px 28px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", opacity:newBlock&&!blockSaving?1:.35 }}>Block</button>
           </div>
-          {blockedDates.length === 0 ? (
+          {blockedDates.length===0 ? (
             <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, padding:"20px 0" }}>No dates blocked.</div>
           ) : (
             blockedDates.map(b => (
               <div key={b.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8 }}>
-                <div style={{ fontSize:14, fontWeight:500 }}>
-                  {new Date(b.blocked_date+"T12:00:00").toLocaleDateString("en-GB",{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}
-                </div>
+                <div style={{ fontSize:14, fontWeight:500 }}>{new Date(b.blocked_date+"T12:00:00").toLocaleDateString("en-GB",{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}</div>
                 <button onClick={() => removeBlockedDate(b.id)} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Remove</button>
               </div>
             ))
           )}
-
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Calendar Sync
           </div>
-          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.7, marginBottom:20 }}>
-            Subscribe to your personal calendar feed to see all your bookings in Google Calendar or Apple Calendar. It updates automatically when new bookings come in.
-          </p>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.7, marginBottom:20 }}>Subscribe to your personal calendar feed to see all your bookings in Google Calendar or Apple Calendar.</p>
           <div style={{ padding:"20px 24px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:12 }}>
             <div style={{ fontSize:12, color:"var(--warm-gray)", letterSpacing:"1px", textTransform:"uppercase", marginBottom:10 }}>Your calendar link</div>
             <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
@@ -1192,9 +1056,7 @@ function Dashboard({ onBack }) {
                 style={{ flex:1, padding:"10px 14px", border:"1.5px solid var(--border)", background:"var(--cream)", fontFamily:"'Outfit',sans-serif", fontSize:12, color:"var(--warm-gray)", outline:"none", minWidth:0 }}
                 onClick={e => e.target.select()}/>
               <button onClick={() => { navigator.clipboard.writeText("https://rousxlmxmjrkyvczbtan.supabase.co/functions/v1/practitioner-calendar?token="+(prac?.calendar_token||"")); alert("Calendar link copied!"); }}
-                style={{ padding:"10px 20px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase", whiteSpace:"nowrap" }}>
-                Copy Link
-              </button>
+                style={{ padding:"10px 20px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase", whiteSpace:"nowrap" }}>Copy Link</button>
             </div>
           </div>
           <p style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.7 }}>
@@ -1207,21 +1069,17 @@ function Dashboard({ onBack }) {
   );
 }
 
-// ─── Cancel Page ──────────────────────────────────────────────────────────────
-
 function CancelPage({ token }) {
   const [status, setStatus] = useState("loading");
   const [booking, setBooking] = useState(null);
-
   useEffect(() => {
     if (!token) { setStatus("invalid"); return; }
     supabase.query("bookings", {
-      select: "*,service:services(name),practitioner:practitioners(name)",
-      filters: "&cancellation_token=eq."+token+"&status=eq.confirmed",
+      select:"*,service:services(name),practitioner:practitioners(name)",
+      filters:"&cancellation_token=eq."+token+"&status=eq.confirmed",
     }).then(rows => {
-      if (rows.length === 0) { setStatus("notfound"); return; }
-      setBooking(rows[0]);
-      setStatus("confirm");
+      if (rows.length===0) { setStatus("notfound"); return; }
+      setBooking(rows[0]); setStatus("confirm");
     }).catch(() => setStatus("error"));
   }, [token]);
 
@@ -1240,19 +1098,19 @@ function CancelPage({ token }) {
     <div style={{ minHeight:"100vh", background:"var(--cream)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
       <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontStyle:"italic", fontWeight:300, marginBottom:8 }}>ninety nine.</div>
       <div style={{ width:40, height:1.5, background:"var(--gold)", margin:"0 auto 48px" }}/>
-      {status === "loading" && <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Loading...</div>}
-      {status === "notfound" && (
+      {status==="loading" && <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Loading...</div>}
+      {status==="notfound" && (
         <div style={{ textAlign:"center", maxWidth:400 }}>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:300, marginBottom:16 }}>Booking not found</div>
           <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7 }}>This booking may have already been cancelled. DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color:"var(--gold)" }}>@ninetyninebyk</a> if you need help.</p>
         </div>
       )}
-      {status === "confirm" && booking && (
+      {status==="confirm" && booking && (
         <div style={{ maxWidth:480, width:"100%" }}>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, marginBottom:8, textAlign:"center" }}>Cancel appointment</div>
           <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300, marginBottom:40 }}>Are you sure you want to cancel this booking?</p>
           <div style={{ background:"var(--warm-white)", border:"1px solid var(--border)", padding:32, marginBottom:32 }}>
-            {[["Treatment", booking.service?.name], ["Practitioner", booking.practitioner?.name], ["Date", formattedDate], ["Time", booking.booking_time?.slice(0,5)]].map(([label, val]) => (
+            {[["Treatment",booking.service?.name],["Practitioner",booking.practitioner?.name],["Date",formattedDate],["Time",booking.booking_time?.slice(0,5)]].map(([label,val]) => (
               <div key={label} style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid var(--border)", fontSize:15 }}>
                 <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>{label}</span>
                 <span style={{ fontWeight:500 }}>{val}</span>
@@ -1265,15 +1123,15 @@ function CancelPage({ token }) {
           </div>
         </div>
       )}
-      {status === "cancelling" && <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Cancelling your appointment...</div>}
-      {status === "done" && (
+      {status==="cancelling" && <div style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>Cancelling your appointment...</div>}
+      {status==="done" && (
         <div style={{ textAlign:"center", maxWidth:400 }}>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, marginBottom:16 }}>Booking cancelled</div>
           <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7, marginBottom:32 }}>Your appointment has been cancelled. We hope to see you again soon.</p>
           <a href="/" style={{ display:"inline-block", padding:"16px 40px", background:"var(--charcoal)", color:"var(--cream)", textDecoration:"none", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase" }}>Back to Website</a>
         </div>
       )}
-      {status === "error" && (
+      {status==="error" && (
         <div style={{ textAlign:"center", maxWidth:400 }}>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:300, marginBottom:16 }}>Something went wrong</div>
           <p style={{ color:"var(--warm-gray)", fontSize:15, fontWeight:300, lineHeight:1.7 }}>Please DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color:"var(--gold)" }}>@ninetyninebyk</a> and we'll sort it for you.</p>
@@ -1283,8 +1141,6 @@ function CancelPage({ token }) {
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
-
 export default function App() {
   const [scrolled, setScrolled] = useState(false);
   const [page, setPage] = useState("site");
@@ -1292,7 +1148,7 @@ export default function App() {
   const bookRef = useRef(null);
   const practitioners = usePractitioners();
   const cancelToken = new URLSearchParams(window.location.search).get("token");
-  const isCancelPage = window.location.pathname === "/cancel" && cancelToken;
+  const isCancelPage = window.location.pathname==="/cancel" && cancelToken;
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 50);
@@ -1313,11 +1169,9 @@ export default function App() {
   const goBook = () => bookRef.current?.scrollIntoView({ behavior:"smooth" });
   const bookWithPrac = (prac) => { setPreselectedPrac(prac); bookRef.current?.scrollIntoView({ behavior:"smooth" }); };
 
-  if (isCancelPage) {
-    return <><style>{css}</style><CancelPage token={cancelToken}/></>;
-  }
+  if (isCancelPage) return <><style>{css}</style><CancelPage token={cancelToken}/></>;
 
-  if (page === "dashboard") {
+  if (page==="dashboard") {
     return (
       <>
         <style>{css}</style>
