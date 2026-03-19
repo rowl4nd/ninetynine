@@ -1058,7 +1058,6 @@ function Dashboard({ onBack }) {
       transition:"all .2s"
     }}>{mins} min</button>
   ))}
-</div>
 
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Blocked Dates
