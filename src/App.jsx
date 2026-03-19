@@ -413,13 +413,24 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
   const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration);
+  // If service has an addon, Date is Step 4. If no addon, Date is Step 3.
   const dateStep = svc?.addon ? 4 : 3;
   const confirmStep = svc?.addon ? 5 : 4;
 
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
-  const handleSelectService = (s) => { setSvc(s); setAddon(null); setStep(3); };
+  const handleSelectService = (s) => { 
+    setSvc(s); 
+    setAddon(null); 
+    // If the service has an addon, go to Step 3 (Addons). 
+    // If not, go straight to the Date Step (which will be 3).
+    if (s.addon) {
+      setStep(3); 
+    } else {
+      setStep(3); 
+    }
+  };
 
   async function handleConfirm() {
     if (IS_DEMO) { setDone(true); return; }
@@ -515,24 +526,30 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
         </div>
       )}
 
-      {step === 3 && svc?.addon && (
+      {step === 3 && (
         <div>
-          <H3>Would you like to add anything?</H3>
-          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:28, lineHeight:1.7 }}>
-            You can add the following optional extra to your {svc.title} appointment.
-          </p>
-          <div className={"nn-svc-item"+(addon===null?" picked":"")} onClick={() => setAddon(null)} style={{ marginBottom:8 }}>
-            <div><div style={{ fontWeight:500 }}>No add-on</div><div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>Just the {svc.title}</div></div>
-            <div style={{ fontSize:14, color:"var(--warm-gray)" }}>—</div>
-          </div>
-          <div className={"nn-svc-item"+(addon?.id===svc.addon.id?" picked":"")} onClick={() => setAddon(svc.addon)}>
-            <div><div style={{ fontWeight:500 }}>{svc.addon.title}</div><div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{svc.addon.duration} min extra</div></div>
-            <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>+£{svc.addon.price}</div>
-          </div>
-          <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(dateStep)}>Continue</button>
-          </div>
+          {svc?.addon ? (
+            /* This is the ADDON selection UI */
+            <div>
+              <H3>Add an extra?</H3>
+              <div 
+                className={"nn-svc-item" + (addon ? " selected" : "")} 
+                onClick={() => { setAddon(svc.addon); setStep(4); }}
+              >
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:400, fontSize:15 }}>{svc.addon.name}</div>
+                  <div style={{ fontSize:12, color:"var(--warm-gray)" }}>+{svc.addon.duration} mins · +£{svc.addon.price}</div>
+                </div>
+              </div>
+              <div className="nn-booking-nav">
+                <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
+                <button className="nn-btn nn-btn-outline" onClick={() => { setAddon(null); setStep(4); }}>Skip</button>
+              </div>
+            </div>
+          ) : (
+            /* If NO addon, this step IS the Date selection - trigger redirect or render calendar */
+            <div style={{ display: 'none' }}>{setStep(4)}</div> 
+          )}
         </div>
       )}
 
