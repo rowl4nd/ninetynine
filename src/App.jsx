@@ -842,6 +842,13 @@ function Dashboard({ onBack }) {
     await supabase.update("bookings", { status }, "id=eq."+bookingId, auth.access_token);
     setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b));
   }
+  async function updateInterval(newInterval) {
+    if (IS_DEMO) { setPrac({ ...prac, slot_interval: newInterval }); return; }
+    try {
+      await supabase.update("practitioners", { slot_interval: newInterval }, "id=eq."+prac.id, auth.access_token);
+      setPrac({ ...prac, slot_interval: newInterval });
+    } catch (e) { console.error(e); }
+  }
 
   async function saveAvailability(day) {
     const row = availability[day];
@@ -1005,6 +1012,21 @@ function Dashboard({ onBack }) {
       {tab === "schedule" && (
         <div style={{ maxWidth:680 }}>
           <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>Set your working days and hours. Block out specific dates for holidays or days off.</p>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:20, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Booking Interval
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:40 }}>
+            <span style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300 }}>Slot length:</span>
+            <select 
+              value={prac?.slot_interval || 30} 
+              onChange={(e) => updateInterval(parseInt(e.target.value))}
+              style={{ padding:"10px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none", cursor:"pointer" }}
+            >
+              <option value="15">15 Minutes</option>
+              <option value="30">30 Minutes (Standard)</option>
+              <option value="60">1 Hour</option>
+            </select>
+          </div>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:20, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Weekly Hours
           </div>
