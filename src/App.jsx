@@ -1212,6 +1212,39 @@ function Dashboard({ onBack }) {
               </div>
             ))
           )}
+          
+      {/* Calendar subscription link */}
+      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+  <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>
+  Calendar Sync
+</div>
+<p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.7, marginBottom:20 }}>
+  Subscribe to your personal calendar feed to see all your bookings in Google Calendar or Apple Calendar. It updates automatically when new bookings come in.
+</p>
+<div style={{ padding:"20px 24px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:12 }}>
+  <div style={{ fontSize:12, color:"var(--warm-gray)", letterSpacing:"1px", textTransform:"uppercase", marginBottom:10 }}>Your calendar link</div>
+  <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+    <input
+      readOnly
+      value={`https://rousxlmxmjrkyvczbtan.supabase.co/functions/v1/practitioner-calendar?token=${prac?.calendar_token}`}
+      style={{ flex:1, padding:"10px 14px", border:"1.5px solid var(--border)", background:"var(--cream)", fontFamily:"'Outfit',sans-serif", fontSize:12, color:"var(--warm-gray)", outline:"none", minWidth:0 }}
+      onClick={(e) => e.target.select()}
+    />
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(`https://rousxlmxmjrkyvczbtan.supabase.co/functions/v1/practitioner-calendar?token=${prac?.calendar_token}`);
+        alert("Calendar link copied!");
+      }}
+      style={{ padding:"10px 20px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase", whiteSpace:"nowrap" }}
+    >
+      Copy Link
+    </button>
+  </div>
+</div>
+<p style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.7 }}>
+  <strong>Google Calendar:</strong> Open Google Calendar → Other calendars → + → From URL → paste link<br/>
+  <strong>Apple Calendar:</strong> File → New Calendar Subscription → paste link
+</p>
         </div>
       )}
     </div>
