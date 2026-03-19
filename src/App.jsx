@@ -1067,7 +1067,6 @@ function Dashboard({ onBack }) {
               }}>{mins} min</button>
             ))}
           </div>
-<p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:20, lineHeight:1.7 }}>
   How often should available time slots appear in the booking calendar?
 </p>
 <div style={{ display:"flex", gap:12, alignItems:"center", padding:"16px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:32 }}>
