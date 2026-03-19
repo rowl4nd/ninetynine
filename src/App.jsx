@@ -222,6 +222,7 @@ function useAvailableSlots(pracId, date, duration) {
       p_practitioner_id: pracId,
       p_date: dateStr(date.year, date.month, date.day),
       p_duration: duration || 30,
+      p_interval: interval || 30
     }).then((rows) => { setSlots(rows.map((r) => r.slot_time.slice(0, 5))); setLoading(false); })
       .catch((e) => { console.error(e); setSlots([]); setLoading(false); });
   }, [pracId, date, duration]);
