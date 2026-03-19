@@ -711,6 +711,106 @@ function BookingFlow({ practitioners, services, preselectedPrac, onClearPreselec
 
 // ─── Practitioner Dashboard ──
 
+function AddServiceForm({ allServices, myServices, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState("");
+  const [duration, setDuration] = useState("");
+  const [price, setPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const myServiceIds = myServices.map(s => s.service_id);
+  const available = allServices.filter(s => !myServiceIds.includes(s.id));
+
+  // Auto-fill duration and price when service selected
+  function handleSelect(id) {
+    setSelectedId(id);
+    const svc = allServices.find(s => s.id === id);
+    if (svc) {
+      setDuration(String(svc.duration));
+      setPrice(String(svc.price));
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedId || !duration || !price) return;
+    setSaving(true);
+    await onAdd(selectedId, parseInt(duration), parseFloat(price));
+    setSelectedId("");
+    setDuration("");
+    setPrice("");
+    setOpen(false);
+    setSaving(false);
+  }
+
+  if (available.length === 0) return (
+    <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300 }}>
+      You've added all available services.
+    </div>
+  );
+
+  return (
+    <div>
+      {!open ? (
+        <button onClick={() => setOpen(true)} style={{
+          display:"flex", alignItems:"center", gap:10, padding:"14px 24px",
+          background:"none", border:"1.5px dashed var(--border)", cursor:"pointer",
+          fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:500,
+          color:"var(--charcoal)", transition:"all .2s", width:"100%"
+        }}>
+          <span style={{ fontSize:18, color:"var(--gold)", lineHeight:1 }}>+</span>
+          Add a service
+        </button>
+      ) : (
+        <div style={{ padding:"24px", background:"var(--cream)", border:"1.5px solid var(--border)" }}>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:400, marginBottom:20 }}>
+            Add a service
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div>
+              <label className="nn-input-label">Service</label>
+              <select value={selectedId} onChange={(e) => handleSelect(e.target.value)}
+                style={{ width:"100%", padding:"14px 18px", border:"1.5px solid var(--border)",
+                  background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif",
+                  fontSize:15, outline:"none", color:"var(--charcoal)", cursor:"pointer" }}>
+                <option value="">Select a service...</option>
+                {["nails","beauty"].map(cat => (
+                  <optgroup key={cat} label={cat === "nails" ? "Nails" : "Beauty"}>
+                    {available.filter(s => s.category === cat).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div style={{ display:"flex", gap:16 }}>
+              <div style={{ flex:1 }}>
+                <label className="nn-input-label">Duration (minutes)</label>
+                <input className="nn-input" type="number" value={duration}
+                  onChange={(e) => setDuration(e.target.value)} placeholder="45"/>
+              </div>
+              <div style={{ flex:1 }}>
+                <label className="nn-input-label">Price (£)</label>
+                <input className="nn-input" type="number" value={price}
+                  onChange={(e) => setPrice(e.target.value)} placeholder="30"/>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:12, marginTop:8 }}>
+              <button onClick={() => setOpen(false)} className="nn-btn-back">Cancel</button>
+              <button onClick={handleSave} disabled={!selectedId || !duration || !price || saving}
+                style={{ padding:"14px 32px", background:"var(--charcoal)", color:"var(--cream)",
+                  border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif",
+                  fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase",
+                  opacity: selectedId && duration && price && !saving ? 1 : 0.35 }}>
+                {saving ? "Saving..." : "Add Service"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ onBack }) {
   const [auth, setAuth] = useState(null);
   const [prac, setPrac] = useState(null);
@@ -1042,78 +1142,81 @@ function Dashboard({ onBack }) {
 
       {/* ── SERVICES TAB ── */}
       {tab === "services" && (
-        <div style={{ maxWidth:680 }}>
-          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
-            Toggle your services on or off — only active services will show in the booking flow. Set your own price for each treatment.
-          </p>
+  <div style={{ maxWidth:680 }}>
+    <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:32, lineHeight:1.7 }}>
+      Add the services you offer and set your own duration and price for each.
+    </p>
 
-          {[["Nails", nailServices], ["Beauty", beautyServices]].map(([catLabel, svcs]) => (
-            svcs.length > 0 && (
-              <div key={catLabel} style={{ marginBottom:40 }}>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, marginBottom:16, paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
-                  <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>
-                  {catLabel}
+    {/* Current services list */}
+    {myServices.length === 0 ? (
+      <div style={{ padding:"32px 0", color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>
+        No services added yet — add your first service below.
+      </div>
+    ) : (
+      <div style={{ marginBottom:32 }}>
+        {myServices.map(ms => {
+          const svc = allServices.find(s => s.id === ms.service_id);
+          if (!svc) return null;
+          return (
+            <div key={ms.service_id} style={{
+              display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
+              background:"var(--warm-white)", border:"1.5px solid var(--border)",
+              marginBottom:8
+            }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:500, fontSize:14 }}>{svc.name}</div>
+                <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>
+                  {ms.custom_duration || svc.duration} min · £{ms.custom_price || svc.price}
                 </div>
-                {svcs.map(svc => {
-                  const active = isMyService(svc.id);
-                  const customPrice = getCustomPrice(svc.id);
-                  const saving = servicesSaving[svc.id];
-                  return (
-                    <div key={svc.id} style={{
-                      display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
-                      background: active ? "var(--warm-white)" : "transparent",
-                      border: `1.5px solid ${active ? "var(--border)" : "var(--border)"}`,
-                      marginBottom:8, opacity: saving ? 0.5 : 1, transition:"all .2s"
-                    }}>
-                      {/* Toggle */}
-                      <button onClick={() => toggleService(svc)} style={{
-                        width:44, height:24, borderRadius:12, border:"none", cursor:"pointer",
-                        background: active ? "var(--charcoal)" : "var(--border)",
-                        position:"relative", transition:"background .2s", flexShrink:0
-                      }}>
-                        <span style={{
-                          position:"absolute", top:3, left: active ? 23 : 3,
-                          width:18, height:18, borderRadius:"50%", background:"#fff",
-                          transition:"left .2s", display:"block"
-                        }}/>
-                      </button>
-
-                      {/* Name + duration */}
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:500, fontSize:14, color: active ? "var(--charcoal)" : "var(--warm-gray)" }}>{svc.name}</div>
-                        <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{svc.duration} min</div>
-                      </div>
-
-                      {/* Price input — only show when active */}
-                      {active && (
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <span style={{ fontSize:14, color:"var(--warm-gray)" }}>£</span>
-                          <input
-                            type="number"
-                            defaultValue={customPrice ?? svc.price}
-                            onBlur={(e) => savePrice(svc, parseFloat(e.target.value))}
-                            style={{
-                              width:72, padding:"8px 10px", border:"1.5px solid var(--border)",
-                              background:"var(--cream)", fontFamily:"'Outfit',sans-serif",
-                              fontSize:14, fontWeight:500, color:"var(--gold)", outline:"none",
-                              textAlign:"center"
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Default price when off */}
-                      {!active && (
-                        <div style={{ fontSize:14, color:"var(--border)", fontWeight:300 }}>£{svc.price}</div>
-                      )}
-                    </div>
-                  );
-                })}
               </div>
-            )
-          ))}
-        </div>
-      )}
+              <button onClick={() => toggleService(svc)} style={{
+                padding:"6px 14px", background:"none", color:"var(--red)",
+                border:"1px solid var(--red)", cursor:"pointer", fontSize:11,
+                fontWeight:600, letterSpacing:.5, textTransform:"uppercase",
+                fontFamily:"'Outfit',sans-serif"
+              }}>Remove</button>
+            </div>
+          );
+        })}
+      </div>
+    )}
+
+    {/* Add service form */}
+    <AddServiceForm
+      allServices={allServices}
+      myServices={myServices}
+      onAdd={async (serviceId, duration, price) => {
+        if (IS_DEMO) {
+          setMyServices(prev => [...prev, { service_id: serviceId, custom_price: price, custom_duration: duration }]);
+          return;
+        }
+        try {
+          // Check if already exists (deleted previously)
+          const existing = await supabase.query("practitioner_services", {
+            filters: `&practitioner_id=eq.${prac.id}&service_id=eq.${serviceId}`,
+            token: auth.access_token,
+          });
+          if (existing.length > 0) {
+            const res = await supabase.update("practitioner_services",
+              { custom_price: price, custom_duration: duration },
+              `practitioner_id=eq.${prac.id}&service_id=eq.${serviceId}`,
+              auth.access_token
+            );
+            setMyServices(prev => [...prev, { service_id: serviceId, custom_price: price, custom_duration: duration }]);
+          } else {
+            const res = await supabase.insert("practitioner_services", {
+              practitioner_id: prac.id,
+              service_id: serviceId,
+              custom_price: price,
+              custom_duration: duration,
+            }, auth.access_token);
+            setMyServices(prev => [...prev, res[0]]);
+          }
+        } catch (e) { console.error(e); }
+      }}
+    />
+  </div>
+)}
 
       {/* ── SCHEDULE TAB ── */}
       {tab === "schedule" && (
