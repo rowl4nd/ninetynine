@@ -417,7 +417,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
-  function handleSelectService = (s) => { setSvc(s); setAddon(null); setStep(3); };
+  function handleSelectService = (s) => { setSvc(s); setAddon(null); setStep(3); }
 
   async function handleConfirm() {
     if (IS_DEMO) { setDone(true); return; }
