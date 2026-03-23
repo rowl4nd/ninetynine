@@ -4,6 +4,7 @@ Nails & beauty salon website with built-in booking system for 99 Banks Road, Wes
 
 ---
 
+
 ## How to get this live (step by step)
 
 ### Step 1: Set up Supabase (your database)
