@@ -1012,6 +1012,16 @@ function Dashboard({ onBack }) {
     } catch (e) { console.error(e); }
   }
 
+  function refreshBookings() {
+    if (IS_DEMO) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase.query("bookings", {
+      select:"*,service:services(name)",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
+      token:auth.access_token,
+    }).then(setBookings).catch(console.error);
+  }
+
   if (!auth) {
     return (
       <div className="nn-login">
@@ -1065,17 +1075,7 @@ function Dashboard({ onBack }) {
             <ManualBookingForm
               practitioner={prac}
               token={auth.access_token}
-              onSave={() => {
-                setShowManualBooking(false);
-                // refresh bookings
-                if (IS_DEMO) return;
-                const today = new Date().toISOString().split("T")[0];
-                supabase.query("bookings", {
-                  select:"*,service:services(name)",
-                  filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
-                  token:auth.access_token,
-                }).then(setBookings).catch(console.error);
-              }}
+              onSave={() => { setShowManualBooking(false); refreshBookings(); }}
               onCancel={() => setShowManualBooking(false)}
             />
           )}
