@@ -933,7 +933,7 @@ function Dashboard({ onBack }) {
     setLoading(true);
     const today = new Date().toISOString().split("T")[0];
     supabase.query("bookings", {
-      select:"*,service:services(name)",
+      select:"*",
       filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
     }).then(setBookings).catch(console.error).finally(() => setLoading(false));
@@ -1015,7 +1015,7 @@ function Dashboard({ onBack }) {
     if (IS_DEMO) return;
     const today = new Date().toISOString().split("T")[0];
     supabase.query("bookings", {
-      select:"*,service:services(name)",
+      select:"*",
       filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
     }).then(setBookings).catch(console.error);
@@ -1088,7 +1088,7 @@ function Dashboard({ onBack }) {
                 <div className="nn-booking-card" key={b.id}>
                   <div>
                     <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
-                    <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service?.name||"Service"} · {b.duration} min · £{b.price}</div>
+                    <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.notes?.match(/Service: ([^·]+)/)?.[1] || b.service?.name || "Service"} · {b.duration} min · £{b.price}</div>
                     <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
