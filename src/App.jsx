@@ -790,7 +790,6 @@ function ManualBookingForm({ practitioner, token, onSave, onCancel }) {
       if (IS_DEMO) { onSave(); return; }
       await supabase.insert("bookings", {
         practitioner_id: practitioner.id,
-        service_id: selectedSvc.id,
         client_name: clientName,
         client_phone: phone,
         client_email: email,
