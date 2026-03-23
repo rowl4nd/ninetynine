@@ -797,7 +797,7 @@ function ManualBookingForm({ practitioner, token, onSave, onCancel }) {
         booking_time: time + ":00",
         duration: selectedSvc.duration,
         price: selectedSvc.price,
-        notes: notes || "Added manually by " + practitioner.name,
+        notes: (notes ? notes + " · " : "") + "Service: " + selectedSvc.title + " · Added by " + practitioner.name,
       }, token);
       onSave();
     } catch (e) { console.error(e); alert("Error creating booking. Please try again."); }
