@@ -198,8 +198,17 @@ const css = `
 .nn-fade{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.22,1,.36,1)}.nn-fade.vis{opacity:1;transform:translateY(0)}
 .nn-success-icon{width:72px;height:72px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 28px;animation:scaleIn .5s cubic-bezier(.22,1,.36,1)}
 @keyframes scaleIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.nn-dash-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border)}
+.nn-dash-cal-cell{background:var(--warm-white);min-height:100px;padding:8px;font-size:12px}
+.nn-dash-cal-cell.today{background:rgba(201,169,110,.08);border:1.5px solid var(--gold)}
+.nn-dash-cal-cell.other-month{opacity:.3}
+.nn-dash-cal-cell-day{font-weight:600;font-size:13px;margin-bottom:6px;color:var(--charcoal)}
+.nn-dash-cal-booking{padding:4px 6px;margin-bottom:3px;border-radius:2px;font-size:11px;font-weight:400;cursor:default;border-left:3px solid var(--gold);background:rgba(201,169,110,.12);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:background .2s}
+.nn-dash-cal-booking:hover{background:rgba(201,169,110,.22)}
+.nn-dash-cal-wkdays{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);margin-bottom:1px}
+.nn-dash-cal-wkdays span{background:var(--charcoal);color:var(--cream);text-align:center;padding:10px 0;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
 @media(max-width:900px){.nn-team-grid{grid-template-columns:repeat(3,1fr)}.nn-contact-grid{grid-template-columns:1fr}}
-@media(max-width:768px){.nn-nav{padding:16px 24px}.nn-nav.scrolled{padding:12px 24px}.nn-nav-links{display:none}.nn-mobile-toggle{display:block}.nn-section{padding:60px 24px}.nn-team-grid{grid-template-columns:repeat(2,1fr)}.nn-prac-grid{grid-template-columns:repeat(2,1fr)}.nn-times{grid-template-columns:repeat(2,1fr)}.nn-confirm{padding:28px}.nn-hero{padding:120px 24px 80px}.nn-insta{padding:60px 24px}.nn-dash{padding:20px}}
+@media(max-width:768px){.nn-nav{padding:16px 24px}.nn-nav.scrolled{padding:12px 24px}.nn-nav-links{display:none}.nn-mobile-toggle{display:block}.nn-section{padding:60px 24px}.nn-team-grid{grid-template-columns:repeat(2,1fr)}.nn-prac-grid{grid-template-columns:repeat(2,1fr)}.nn-times{grid-template-columns:repeat(2,1fr)}.nn-confirm{padding:28px}.nn-hero{padding:120px 24px 80px}.nn-insta{padding:60px 24px}.nn-dash{padding:20px}.nn-dash-cal-cell{min-height:60px;padding:4px}.nn-dash-cal-booking{font-size:10px;padding:2px 4px}}
 `;
 
 function usePractitioners() {
@@ -983,6 +992,9 @@ function Dashboard({ onBack }) {
   const [blockSaving, setBlockSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
+  const [viewMode, setViewMode] = useState("calendar");
+  const [dashMonth, setDashMonth] = useState(new Date().getMonth());
+  const [dashYear, setDashYear] = useState(new Date().getFullYear());
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
   async function handleLogin(e) {
@@ -1000,17 +1012,21 @@ function Dashboard({ onBack }) {
   useEffect(() => {
     if (!auth || !prac || tab !== "bookings") return;
     if (IS_DEMO) {
+      const demoToday = new Date().toISOString().split("T")[0];
       setBookings([
-        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:"2026-03-22", booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service:{ name:"Gel Manicure" } },
-        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:"2026-03-22", booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service:{ name:"Lash Lift & Tint" } },
+        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:demoToday, booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service_title:"Gel Manicure" },
+        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:demoToday, booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service_title:"Lash Lift & Tint" },
+        { id:"d3", client_name:"Lucy T.", client_phone:"07700 111222", booking_date:dateStr(new Date().getFullYear(), new Date().getMonth(), Math.min(new Date().getDate()+1, getDaysInMonth(new Date().getFullYear(), new Date().getMonth()))), booking_time:"09:30:00", duration:45, price:35, status:"confirmed", service_title:"Brow Lamination" },
+        { id:"d4", client_name:"Hannah R.", client_phone:"07700 333444", booking_date:dateStr(new Date().getFullYear(), new Date().getMonth(), Math.min(new Date().getDate()+2, getDaysInMonth(new Date().getFullYear(), new Date().getMonth()))), booking_time:"14:00:00", duration:60, price:55, status:"confirmed", service_title:"Luxury Facial" },
       ]);
       return;
     }
     setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+    const monthStart = dashYear+"-"+String(dashMonth+1).padStart(2,"0")+"-01";
+    const monthEnd = dashYear+"-"+String(dashMonth+1).padStart(2,"0")+"-"+getDaysInMonth(dashYear,dashMonth);
     supabase.query("bookings", {
       select:"*",
-      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+monthStart+"&booking_date=lte."+monthEnd+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
     }).then(async (rows) => {
       // Try to resolve service names from custom_services
@@ -1044,7 +1060,7 @@ function Dashboard({ onBack }) {
       }
       setBookings(rows);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [auth, prac, tab]);
+  }, [auth, prac, tab, dashMonth, dashYear]);
 
   useEffect(() => {
     if (!auth || !prac || !showStaffBooking) return;
@@ -1234,37 +1250,87 @@ function Dashboard({ onBack }) {
             />
           ) : (
             <>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
-                <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300 }}>
-                  {loading ? "" : upcoming.length === 0 ? "" : upcoming.length + " upcoming"}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={() => setViewMode("calendar")} style={{ padding:"8px 18px", background:viewMode==="calendar"?"var(--charcoal)":"none", color:viewMode==="calendar"?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(viewMode==="calendar"?"var(--charcoal)":"var(--border)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:11, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>Calendar</button>
+                  <button onClick={() => setViewMode("list")} style={{ padding:"8px 18px", background:viewMode==="list"?"var(--charcoal)":"none", color:viewMode==="list"?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(viewMode==="list"?"var(--charcoal)":"var(--border)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:11, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>List</button>
                 </div>
                 <button onClick={() => setShowStaffBooking(true)} style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>
                   <span style={{ fontSize:16, lineHeight:1 }}>+</span> Add Booking
                 </button>
               </div>
+
               {loading ? (
                 <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
-              ) : upcoming.length === 0 ? (
-                <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>No upcoming bookings — enjoy the break!</div>
-              ) : (
+              ) : viewMode === "calendar" ? (
                 <div>
-                  {upcoming.map(b => (
-                    <div className="nn-booking-card" key={b.id}>
-                      <div>
-                        <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
-                        <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||b.notes||"Service"} · {b.duration} min · £{b.price}</div>
-                        <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                        <span className="nn-booking-status confirmed">confirmed</span>
-                        <div style={{ display:"flex", gap:6 }}>
-                          <button onClick={() => updateStatus(b.id,"completed")} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
-                          <button onClick={() => updateStatus(b.id,"cancelled")} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                    <button className="nn-cal-btn" onClick={() => { if(dashMonth===0){setDashMonth(11);setDashYear(dashYear-1)}else setDashMonth(dashMonth-1) }}>‹</button>
+                    <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:400 }}>{getMonthName(dashMonth)} {dashYear}</h3>
+                    <button className="nn-cal-btn" onClick={() => { if(dashMonth===11){setDashMonth(0);setDashYear(dashYear+1)}else setDashMonth(dashMonth+1) }}>›</button>
+                  </div>
+                  <div className="nn-dash-cal-wkdays">
+                    {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}
+                  </div>
+                  <div className="nn-dash-cal-grid">
+                    {(() => {
+                      const first = (new Date(dashYear,dashMonth,1).getDay()+6)%7;
+                      const total = getDaysInMonth(dashYear,dashMonth);
+                      const today = new Date();
+                      const cells = [];
+                      const prevMonth = dashMonth===0?11:dashMonth-1;
+                      const prevYear = dashMonth===0?dashYear-1:dashYear;
+                      const prevTotal = getDaysInMonth(prevYear,prevMonth);
+                      for(let i=0;i<first;i++){
+                        const d = prevTotal - first + 1 + i;
+                        cells.push(<div className="nn-dash-cal-cell other-month" key={"p"+i}><div className="nn-dash-cal-cell-day">{d}</div></div>);
+                      }
+                      for(let d=1;d<=total;d++){
+                        const ds = dateStr(dashYear, dashMonth, d);
+                        const isToday = d===today.getDate()&&dashMonth===today.getMonth()&&dashYear===today.getFullYear();
+                        const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
+                        cells.push(
+                          <div className={"nn-dash-cal-cell"+(isToday?" today":"")} key={d}>
+                            <div className="nn-dash-cal-cell-day">{d}</div>
+                            {dayBookings.map(b => (
+                              <div className="nn-dash-cal-booking" key={b.id} title={b.client_name+" — "+(b.service_title||b.service_name||b.service?.name||"Service")+" at "+b.booking_time?.slice(0,5)+"\n"+b.client_phone}>
+                                <strong>{b.booking_time?.slice(0,5)}</strong> {b.client_name}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      const remainder = (first + total) % 7;
+                      if(remainder > 0) for(let i=1;i<=7-remainder;i++){
+                        cells.push(<div className="nn-dash-cal-cell other-month" key={"n"+i}><div className="nn-dash-cal-cell-day">{i}</div></div>);
+                      }
+                      return cells;
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                upcoming.length === 0 ? (
+                  <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>No upcoming bookings — enjoy the break!</div>
+                ) : (
+                  <div>
+                    {upcoming.map(b => (
+                      <div className="nn-booking-card" key={b.id}>
+                        <div>
+                          <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
+                          <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||b.notes||"Service"} · {b.duration} min · £{b.price}</div>
+                          <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          <span className="nn-booking-status confirmed">confirmed</span>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={() => updateStatus(b.id,"completed")} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
+                            <button onClick={() => updateStatus(b.id,"cancelled")} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )
               )}
             </>
           )}
