@@ -205,6 +205,16 @@ const css = `
 .nn-dash-cal-cell-day{font-weight:600;font-size:13px;margin-bottom:6px;color:var(--charcoal)}
 .nn-dash-cal-booking{padding:4px 6px;margin-bottom:3px;border-radius:2px;font-size:11px;font-weight:400;cursor:default;border-left:3px solid var(--gold);background:rgba(201,169,110,.12);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:background .2s}
 .nn-dash-cal-booking:hover{background:rgba(201,169,110,.22)}
+.nn-dash-cal-cell.picked{background:var(--blush);box-shadow:inset 0 -3px 0 var(--gold)}
+.nn-dash-cal-cell{cursor:pointer;transition:background .15s}
+.nn-dash-cal-cell:not(.other-month):hover{background:var(--blush)}
+.nn-day-detail{margin-top:20px;padding:28px;background:var(--warm-white);border:1.5px solid var(--border)}
+.nn-day-detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.nn-day-detail-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400}
+.nn-day-detail-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--warm-gray);padding:4px 8px;transition:color .2s}
+.nn-day-detail-close:hover{color:var(--charcoal)}
+.nn-day-booking-full{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:var(--cream);border:1px solid var(--border);margin-bottom:8px;transition:all .2s}
+.nn-day-booking-full:hover{box-shadow:0 2px 12px rgba(44,40,37,.06)}
 .nn-dash-cal-wkdays{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);margin-bottom:1px}
 .nn-dash-cal-wkdays span{background:var(--charcoal);color:var(--cream);text-align:center;padding:10px 0;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
 @media(max-width:900px){.nn-team-grid{grid-template-columns:repeat(3,1fr)}.nn-contact-grid{grid-template-columns:1fr}}
@@ -992,7 +1002,7 @@ function Dashboard({ onBack }) {
   const [blockSaving, setBlockSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
-  const [viewMode, setViewMode] = useState("calendar");
+  const [selectedDay, setSelectedDay] = useState(null);
   const [dashMonth, setDashMonth] = useState(new Date().getMonth());
   const [dashYear, setDashYear] = useState(new Date().getFullYear());
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -1289,16 +1299,49 @@ function Dashboard({ onBack }) {
                         const ds = dateStr(dashYear, dashMonth, d);
                         const isToday = d===today.getDate()&&dashMonth===today.getMonth()&&dashYear===today.getFullYear();
                         const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
-                        cells.push(
-                          <div className={"nn-dash-cal-cell"+(isToday?" today":"")} key={d}>
-                            <div className="nn-dash-cal-cell-day">{d}</div>
-                            {dayBookings.map(b => (
-                              <div className="nn-dash-cal-booking" key={b.id} title={b.client_name+" — "+(b.service_title||b.service_name||b.service?.name||"Service")+" at "+b.booking_time?.slice(0,5)+"\n"+b.client_phone}>
-                                <strong>{b.booking_time?.slice(0,5)}</strong> {b.client_name}
+                       cells.push(
+                         <div className={"nn-dash-cal-cell"+(isToday?" today":"")+(selectedDay&&selectedDay.day===d&&selectedDay.month===dashMonth&&selectedDay.year===dashYear?" picked":"")} key={d} onClick={() => setSelectedDay({day:d,month:dashMonth,year:dashYear})}>
+                           <div className="nn-dash-cal-cell-day">{d}</div>
+                           {dayBookings.slice(0,2).map(b => (
+                             <div className="nn-dash-cal-booking" key={b.id}>
+                               <strong>{b.booking_time?.slice(0,5)}</strong> {b.client_name}
+                             </div>
+                           {selectedDay && selectedDay.month===dashMonth && selectedDay.year===dashYear && (() => {
+                    const ds = dateStr(selectedDay.year, selectedDay.month, selectedDay.day);
+                    const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
+                    const dayLabel = getDayName(selectedDay.year,selectedDay.month,selectedDay.day)+" "+selectedDay.day+" "+getMonthName(selectedDay.month);
+                    return (
+                      <div className="nn-day-detail">
+                        <div className="nn-day-detail-header">
+                          <div className="nn-day-detail-title">{dayLabel}</div>
+                          <button className="nn-day-detail-close" onClick={(e) => { e.stopPropagation(); setSelectedDay(null); }}>✕</button>
+                        </div>
+                        {dayBookings.length === 0 ? (
+                          <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300, padding:"12px 0" }}>No bookings on this day.</div>
+                        ) : (
+                          dayBookings.map(b => (
+                            <div className="nn-day-booking-full" key={b.id}>
+                              <div>
+                                <div style={{ fontWeight:500, marginBottom:3 }}>{b.booking_time?.slice(0,5)} — {b.client_name}</div>
+                                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||"Service"} · {b.duration} min · £{b.price}</div>
+                                <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.client_phone}{b.client_email ? " · "+b.client_email : ""}</div>
                               </div>
-                            ))}
-                          </div>
-                        );
+                              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                                <button onClick={(e) => { e.stopPropagation(); updateStatus(b.id,"completed"); }} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
+                                <button onClick={(e) => { e.stopPropagation(); updateStatus(b.id,"cancelled"); }} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    );
+                  })()}
+                           ))}
+                           {dayBookings.length > 2 && (
+                             <div style={{ fontSize:10, color:"var(--gold)", fontWeight:500, marginTop:2 }}>+{dayBookings.length - 2} more</div>
+                           )}
+                         </div>
+                       );
                       }
                       const remainder = (first + total) % 7;
                       if(remainder > 0) for(let i=1;i<=7-remainder;i++){
