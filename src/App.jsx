@@ -1003,6 +1003,7 @@ function Dashboard({ onBack }) {
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [viewMode, setViewMode] = useState("calendar");
   const [dashMonth, setDashMonth] = useState(new Date().getMonth());
   const [dashYear, setDashYear] = useState(new Date().getFullYear());
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -1306,7 +1307,21 @@ function Dashboard({ onBack }) {
                              <div className="nn-dash-cal-booking" key={b.id}>
                                <strong>{b.booking_time?.slice(0,5)}</strong> {b.client_name}
                              </div>
-                           {selectedDay && selectedDay.month===dashMonth && selectedDay.year===dashYear && (() => {
+                           ))}
+                           {dayBookings.length > 2 && (
+                             <div style={{ fontSize:10, color:"var(--gold)", fontWeight:500, marginTop:2 }}>+{dayBookings.length - 2} more</div>
+                           )}
+                         </div>
+                       );
+                      }
+                      const remainder = (first + total) % 7;
+                      if(remainder > 0) for(let i=1;i<=7-remainder;i++){
+                        cells.push(<div className="nn-dash-cal-cell other-month" key={"n"+i}><div className="nn-dash-cal-cell-day">{i}</div></div>);
+                      }
+                      return cells;
+                    })()}
+                  </div>
+                  {selectedDay && selectedDay.month===dashMonth && selectedDay.year===dashYear && (() => {
                     const ds = dateStr(selectedDay.year, selectedDay.month, selectedDay.day);
                     const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
                     const dayLabel = getDayName(selectedDay.year,selectedDay.month,selectedDay.day)+" "+selectedDay.day+" "+getMonthName(selectedDay.month);
@@ -1336,20 +1351,6 @@ function Dashboard({ onBack }) {
                       </div>
                     );
                   })()}
-                           ))}
-                           {dayBookings.length > 2 && (
-                             <div style={{ fontSize:10, color:"var(--gold)", fontWeight:500, marginTop:2 }}>+{dayBookings.length - 2} more</div>
-                           )}
-                         </div>
-                       );
-                      }
-                      const remainder = (first + total) % 7;
-                      if(remainder > 0) for(let i=1;i<=7-remainder;i++){
-                        cells.push(<div className="nn-dash-cal-cell other-month" key={"n"+i}><div className="nn-dash-cal-cell-day">{i}</div></div>);
-                      }
-                      return cells;
-                    })()}
-                  </div>
                 </div>
               ) : (
                 upcoming.length === 0 ? (
