@@ -426,6 +426,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
     try {
       await supabase.insert("bookings", {
         practitioner_id: prac.id, service_id: svc.id,
+        service_title: svc.title + (addon ? " + " + addon.title : ""),
         client_name: clientName, client_phone: phone, client_email: email,
         booking_date: dateStr(date.year, date.month, date.day),
         booking_time: time + ":00", duration: totalDuration, price: totalPrice,
@@ -757,6 +758,210 @@ function ServiceCard({ svc, onEdit, onRemove }) {
   );
 }
 
+function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
+  const [step, setStep] = useState(1);
+  const [svc, setSvc] = useState(null);
+  const [addon, setAddon] = useState(null);
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [clientName, setClientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const now = new Date();
+  const [cM, setCM] = useState(now.getMonth());
+  const [cY, setCY] = useState(now.getFullYear());
+
+  const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
+  const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
+  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+
+  const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
+  const ungrouped = services.filter(s => !s.group_name);
+
+  async function handleSave() {
+    if (!svc || !date || !time || !clientName || !phone) return;
+    setSaving(true);
+    try {
+      if (IS_DEMO) { setDone(true); setSaving(false); return; }
+      await supabase.insert("bookings", {
+        practitioner_id: prac.id,
+        service_id: svc.id,
+        service_title: svc.title + (addon ? " + " + addon.title : ""),
+        client_name: clientName,
+        client_phone: phone,
+        client_email: email,
+        booking_date: dateStr(date.year, date.month, date.day),
+        booking_time: time + ":00",
+        duration: totalDuration,
+        price: totalPrice,
+        notes: (addon ? "Add-on: " + addon.title + ". " : "") + (notes || ""),
+      }, token);
+      setDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("Error creating booking. Please try again.");
+    }
+    setSaving(false);
+  }
+
+  if (done) {
+    return (
+      <div style={{ maxWidth:500, padding:"48px 0" }}>
+        <div className="nn-success-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:300, textAlign:"center", marginBottom:10 }}>Booking added</h3>
+        <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:14, fontWeight:300, lineHeight:1.6, marginBottom:32 }}>
+          {clientName} is booked in for {svc?.title} on {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} at {time}.
+        </p>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          <button onClick={onDone} style={{ padding:"14px 32px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase" }}>Back to Bookings</button>
+        </div>
+      </div>
+    );
+  }
+
+  const H3 = ({ children }) => <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:400, marginBottom:20 }}>{children}</h3>;
+
+  return (
+    <div style={{ maxWidth:680 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:32, paddingBottom:16, borderBottom:"1px solid var(--border)" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:300 }}>Add a booking</div>
+        <button onClick={onCancel} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"var(--warm-gray)", fontFamily:"'Outfit',sans-serif" }}>✕ Cancel</button>
+      </div>
+
+      {step === 1 && (
+        <div>
+          <H3>Select a service</H3>
+          {services.length === 0 ? (
+            <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300, padding:"20px 0" }}>No services set up yet. Add services in the "My Services" tab first.</div>
+          ) : (
+            <div>
+              {groups.map(group => (
+                <div key={group} style={{ marginBottom:24 }}>
+                  <div className="nn-svc-group-label">{group}</div>
+                  {services.filter(s => s.group_name===group).map(s => (
+                    <SvcItem key={s.id} s={s} picked={svc?.id===s.id} onSelect={() => { setSvc(s); setAddon(null); }}/>
+                  ))}
+                </div>
+              ))}
+              {ungrouped.length > 0 && (
+                <div>
+                  {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
+                  {ungrouped.map(s => (
+                    <SvcItem key={s.id} s={s} picked={svc?.id===s.id} onSelect={() => { setSvc(s); setAddon(null); }}/>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {svc?.addon && (
+            <div style={{ marginTop:24, padding:"20px", background:"var(--cream)", border:"1.5px solid var(--border)" }}>
+              <div style={{ fontSize:13, fontWeight:500, marginBottom:12 }}>Optional add-on</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => setAddon(null)} style={{ flex:1, padding:"12px", background:!addon?"var(--charcoal)":"var(--warm-white)", color:!addon?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(addon?"var(--border)":"var(--charcoal)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:400 }}>No add-on</button>
+                <button onClick={() => setAddon(svc.addon)} style={{ flex:1, padding:"12px", background:addon?"var(--charcoal)":"var(--warm-white)", color:addon?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(addon?"var(--charcoal)":"var(--border)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:400 }}>{svc.addon.title} (+£{svc.addon.price})</button>
+              </div>
+            </div>
+          )}
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={onCancel}>Cancel</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(2)} disabled={!svc} style={{ opacity:svc?1:.35 }}>Continue</button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <H3>Pick a date &amp; time</H3>
+          <div style={{ display:"flex", gap:40, flexWrap:"wrap" }}>
+            <div className="nn-cal">
+              <div className="nn-cal-head">
+                <button className="nn-cal-btn" onClick={() => { if(cM===0){setCM(11);setCY(cY-1)}else setCM(cM-1) }}>‹</button>
+                <h3>{getMonthName(cM)} {cY}</h3>
+                <button className="nn-cal-btn" onClick={() => { if(cM===11){setCM(0);setCY(cY+1)}else setCM(cM+1) }}>›</button>
+              </div>
+              <div className="nn-cal-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}</div>
+              <div className="nn-cal-days">
+                {(() => {
+                  const first = (new Date(cY,cM,1).getDay()+6)%7;
+                  const total = getDaysInMonth(cY,cM);
+                  const cells = [];
+                  for(let i=0;i<first;i++) cells.push(<div className="nn-cal-day nil" key={"e"+i}/>);
+                  for(let d=1;d<=total;d++){
+                    const isNow=d===now.getDate()&&cM===now.getMonth()&&cY===now.getFullYear();
+                    const past=new Date(cY,cM,d)<new Date(now.getFullYear(),now.getMonth(),now.getDate());
+                    const sun=new Date(cY,cM,d).getDay()===0;
+                    const sel=date&&date.day===d&&date.month===cM&&date.year===cY;
+                    cells.push(<button key={d} className={"nn-cal-day"+(sel?" on":"")+(past||sun?" off":"")+(isNow?" now":"")}
+                      onClick={() => { if(!past&&!sun){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||sun}>{d}</button>);
+                  }
+                  return cells;
+                })()}
+              </div>
+            </div>
+            {date && (
+              <div style={{ flex:1, minWidth:180 }}>
+                <div style={{ fontSize:14, color:"var(--warm-gray)", marginBottom:14, fontWeight:300 }}>
+                  {getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)}
+                </div>
+                {slotsLoading ? (
+                  <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300 }}>Loading times...</div>
+                ) : slots.length === 0 ? (
+                  <div style={{ color:"var(--red)", fontSize:14, fontWeight:300 }}>No available slots. Try another day.</div>
+                ) : (
+                  <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time"+(time===t?" on":"")} onClick={() => setTime(t)}>{t}</button>)}</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(3)} disabled={!date||!time} style={{ opacity:date&&time?1:.35 }}>Continue</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div>
+          <H3>Client details</H3>
+          <div style={{ background:"var(--cream)", border:"1px solid var(--border)", padding:32, marginBottom:24 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid var(--border)", fontSize:14 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Service</span>
+              <span style={{ fontWeight:500 }}>{svc?.title}{addon ? " + " + addon.title : ""}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid var(--border)", fontSize:14 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Date &amp; Time</span>
+              <span style={{ fontWeight:500 }}>{getDayName(date.year,date.month,date.day)} {date.day} {getMonthName(date.month)} at {time}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid var(--border)", fontSize:14 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Duration</span>
+              <span style={{ fontWeight:500 }}>{totalDuration} min</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", fontSize:14 }}>
+              <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>Price</span>
+              <span style={{ fontWeight:600, color:"var(--gold)" }}>£{totalPrice}</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div><label className="nn-input-label">Client Name</label><input className="nn-input" type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full name"/></div>
+            <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx"/></div>
+            <div><label className="nn-input-label">Email (optional)</label><input className="nn-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="client@email.com"/></div>
+            <div><label className="nn-input-label">Notes (optional)</label><input className="nn-input" type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Walk-in, prefers short nails"/></div>
+          </div>
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
+            <button className="nn-btn nn-btn-gold" onClick={handleSave} disabled={!clientName||!phone||saving} style={{ opacity:clientName&&phone&&!saving?1:.35 }}>
+              {saving ? "Saving..." : "Confirm Booking"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ onBack }) {
   const [auth, setAuth] = useState(null);
   const [prac, setPrac] = useState(null);
@@ -776,6 +981,8 @@ function Dashboard({ onBack }) {
   const [newBlockEnd, setNewBlockEnd] = useState("");
   const [blockType, setBlockType] = useState("full");
   const [blockSaving, setBlockSaving] = useState(false);
+  const [showStaffBooking, setShowStaffBooking] = useState(false);
+  const [staffBookServices, setStaffBookServices] = useState([]);
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
   async function handleLogin(e) {
@@ -802,11 +1009,91 @@ function Dashboard({ onBack }) {
     setLoading(true);
     const today = new Date().toISOString().split("T")[0];
     supabase.query("bookings", {
-      select:"*,service:services(name)",
+      select:"*",
       filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
-    }).then(setBookings).catch(console.error).finally(() => setLoading(false));
+    }).then(async (rows) => {
+      // Try to resolve service names from custom_services
+      if (rows.length > 0) {
+        try {
+          const svcIds = [...new Set(rows.map(r => r.service_id).filter(Boolean))];
+          if (svcIds.length > 0) {
+            const svcs = await supabase.query("custom_services", {
+              select:"id,title",
+              filters:"&id=in.(" + svcIds.join(",") + ")",
+              token:auth.access_token,
+            });
+            const svcMap = Object.fromEntries(svcs.map(s => [s.id, s.title]));
+            rows = rows.map(b => ({ ...b, service_name: svcMap[b.service_id] || null }));
+          }
+        } catch(e) {
+          // If custom_services lookup fails, try old services table
+          try {
+            const svcIds = [...new Set(rows.map(r => r.service_id).filter(Boolean))];
+            if (svcIds.length > 0) {
+              const svcs = await supabase.query("services", {
+                select:"id,name",
+                filters:"&id=in.(" + svcIds.join(",") + ")",
+                token:auth.access_token,
+              });
+              const svcMap = Object.fromEntries(svcs.map(s => [s.id, s.name]));
+              rows = rows.map(b => ({ ...b, service_name: svcMap[b.service_id] || null }));
+            }
+          } catch(e2) { /* ignore */ }
+        }
+      }
+      setBookings(rows);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [auth, prac, tab]);
+
+  useEffect(() => {
+    if (!auth || !prac || !showStaffBooking) return;
+    if (IS_DEMO) { setStaffBookServices(DEMO_SERVICES_LIST); return; }
+    supabase.query("custom_services", {
+      select:"*,addon:custom_service_addons(*)",
+      filters:"&practitioner_id=eq."+prac.id+"&is_active=eq.true&order=group_order,service_order,created_at",
+      token:auth.access_token,
+    }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addon:s.addon?.[0]||null })))).catch(console.error);
+  }, [auth, prac, showStaffBooking]);
+
+  function refreshBookings() {
+    if (IS_DEMO) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase.query("bookings", {
+      select:"*",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
+      token:auth.access_token,
+    }).then(async (rows) => {
+      if (rows.length > 0) {
+        try {
+          const svcIds = [...new Set(rows.map(r => r.service_id).filter(Boolean))];
+          if (svcIds.length > 0) {
+            const svcs = await supabase.query("custom_services", {
+              select:"id,title",
+              filters:"&id=in.(" + svcIds.join(",") + ")",
+              token:auth.access_token,
+            });
+            const svcMap = Object.fromEntries(svcs.map(s => [s.id, s.title]));
+            rows = rows.map(b => ({ ...b, service_name: svcMap[b.service_id] || null }));
+          }
+        } catch(e) {
+          try {
+            const svcIds = [...new Set(rows.map(r => r.service_id).filter(Boolean))];
+            if (svcIds.length > 0) {
+              const svcs = await supabase.query("services", {
+                select:"id,name",
+                filters:"&id=in.(" + svcIds.join(",") + ")",
+                token:auth.access_token,
+              });
+              const svcMap = Object.fromEntries(svcs.map(s => [s.id, s.name]));
+              rows = rows.map(b => ({ ...b, service_name: svcMap[b.service_id] || null }));
+            }
+          } catch(e2) { /* ignore */ }
+        }
+      }
+      setBookings(rows);
+    }).catch(console.error);
+  }
 
   useEffect(() => {
     if (!auth || !prac || tab !== "services") return;
@@ -936,30 +1223,52 @@ function Dashboard({ onBack }) {
       </div>
 
       {tab === "bookings" && (
-        loading ? (
-          <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
-        ) : upcoming.length === 0 ? (
-          <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>No upcoming bookings — enjoy the break!</div>
-        ) : (
-          <div>
-            {upcoming.map(b => (
-              <div className="nn-booking-card" key={b.id}>
-                <div>
-                  <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
-                  <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service?.name||"Service"} · {b.duration} min · £{b.price}</div>
-                  <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
+        <div>
+          {showStaffBooking ? (
+            <StaffBookingForm
+              prac={prac}
+              services={staffBookServices}
+              token={auth.access_token}
+              onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
+              onCancel={() => setShowStaffBooking(false)}
+            />
+          ) : (
+            <>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+                <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300 }}>
+                  {loading ? "" : upcoming.length === 0 ? "" : upcoming.length + " upcoming"}
                 </div>
-                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                  <span className="nn-booking-status confirmed">confirmed</span>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={() => updateStatus(b.id,"completed")} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
-                    <button onClick={() => updateStatus(b.id,"cancelled")} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
-                  </div>
-                </div>
+                <button onClick={() => setShowStaffBooking(true)} style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>
+                  <span style={{ fontSize:16, lineHeight:1 }}>+</span> Add Booking
+                </button>
               </div>
-            ))}
-          </div>
-        )
+              {loading ? (
+                <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
+              ) : upcoming.length === 0 ? (
+                <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>No upcoming bookings — enjoy the break!</div>
+              ) : (
+                <div>
+                  {upcoming.map(b => (
+                    <div className="nn-booking-card" key={b.id}>
+                      <div>
+                        <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
+                        <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||b.notes||"Service"} · {b.duration} min · £{b.price}</div>
+                        <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                        <span className="nn-booking-status confirmed">confirmed</span>
+                        <div style={{ display:"flex", gap:6 }}>
+                          <button onClick={() => updateStatus(b.id,"completed")} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
+                          <button onClick={() => updateStatus(b.id,"cancelled")} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {tab === "services" && (
@@ -1141,24 +1450,28 @@ function CancelPage({ token }) {
   useEffect(() => {
     if (!token) { setStatus("invalid"); return; }
     supabase.query("bookings", {
-      select:"*,service:services(name),practitioner:practitioners(name)",
+      select:"*,practitioner:practitioners(name)",
       filters:"&cancellation_token=eq."+token+"&status=eq.confirmed",
     }).then(rows => {
       if (rows.length===0) { setStatus("notfound"); return; }
       setBooking(rows[0]); setStatus("confirm");
-    }).catch(() => setStatus("error"));
+    }).catch(() => {
+      // If cancellation_token column doesn't exist, the query will fail
+      setStatus("error");
+    });
   }, [token]);
 
   async function handleCancel() {
     setStatus("cancelling");
     try {
-      await supabase.update("bookings", { status:"cancelled", cancelled_by:"client" }, "cancellation_token=eq."+token);
+      await supabase.update("bookings", { status:"cancelled" }, "cancellation_token=eq."+token);
       setStatus("done");
     } catch (e) { console.error(e); setStatus("error"); }
   }
 
   const dateObj = booking ? new Date(booking.booking_date+"T12:00:00") : null;
   const formattedDate = dateObj?.toLocaleDateString("en-GB",{ weekday:"long", day:"numeric", month:"long", year:"numeric" });
+  const treatmentName = booking?.service_title || booking?.notes || "Your treatment";
 
   return (
     <div style={{ minHeight:"100vh", background:"var(--cream)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
@@ -1176,7 +1489,7 @@ function CancelPage({ token }) {
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:300, marginBottom:8, textAlign:"center" }}>Cancel appointment</div>
           <p style={{ textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300, marginBottom:40 }}>Are you sure you want to cancel this booking?</p>
           <div style={{ background:"var(--warm-white)", border:"1px solid var(--border)", padding:32, marginBottom:32 }}>
-            {[["Treatment",booking.service?.name],["Practitioner",booking.practitioner?.name],["Date",formattedDate],["Time",booking.booking_time?.slice(0,5)]].map(([label,val]) => (
+            {[["Treatment",treatmentName],["Practitioner",booking.practitioner?.name],["Date",formattedDate],["Time",booking.booking_time?.slice(0,5)]].map(([label,val]) => (
               <div key={label} style={{ display:"flex", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid var(--border)", fontSize:15 }}>
                 <span style={{ color:"var(--warm-gray)", fontWeight:300 }}>{label}</span>
                 <span style={{ fontWeight:500 }}>{val}</span>
