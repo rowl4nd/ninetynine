@@ -206,7 +206,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
-  function handleSelectService(s) { setSvc(s); setAddon(null); }
+  function handleSelectService(s) { setSvc(s); setAddon(null); if (s?.addon) setStep(3); else setStep(dateStep); }
 
   async function handleConfirm() {
     if (IS_DEMO) { setDone(true); return; }
@@ -257,7 +257,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
           <H3>Who would you like to see?</H3>
           <div className="nn-prac-grid">
             {practitioners.map(p => (
-              <div key={p.id} className={"nn-prac-card"+(prac?.id===p.id?" picked":"")} onClick={() => setPrac(p)}>
+              <div key={p.id} className={"nn-prac-card"+(prac?.id===p.id?" picked":"")} onClick={() => { setPrac(p); setStep(2); }}>
                 {p.photo
                   ? <div className="nn-team-avatar" style={{ backgroundImage:"url("+p.photo+")", width:48, height:48, margin:"0 auto 14px" }}/>
                   : <div className="nn-team-avatar" style={{ background:p.color, width:48, height:48, fontSize:18, margin:"0 auto 14px" }}>{p.name[0]}</div>
