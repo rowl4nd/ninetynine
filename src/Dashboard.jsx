@@ -7,7 +7,7 @@ import {
   DEMO_PRACTITIONERS, DEMO_SERVICES_LIST,
   getDaysInMonth, getMonthName, getDayName, dateStr,
   useAvailableSlots, SvcItem,
-} from "./shared.js";
+} from "./shared.jsx";
 
 // ============================================================
 // SERVICE FORM (add/edit a custom service)
