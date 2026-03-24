@@ -12,7 +12,7 @@ import {
   dateStr,
   useAvailableSlots,
   ServiceGroup,
-} from "./shared.js";
+} from "./shared.jsx";
 
 // ============================================================
 // NAV
