@@ -548,8 +548,8 @@ export default function Dashboard({ onBack }) {
     setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b));
   }
 
-  async function saveAvailability(day) {
-    const row = availability[day];
+  async function saveAvailability(day, overrides = {}) {
+    const row = { ...availability[day], ...overrides };
     if (IS_DEMO) return;
     try {
       const res = await fetch(SUPABASE_URL+"/rest/v1/availability?practitioner_id=eq."+prac.id+"&day_of_week=eq."+day, {
@@ -833,7 +833,7 @@ export default function Dashboard({ onBack }) {
           </div>
           {availability.map((row, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:16, padding:"14px 20px", background:row.is_available?"var(--warm-white)":"transparent", border:"1.5px solid var(--border)", marginBottom:8, opacity:row.is_available?1:.5, transition:"all .2s" }}>
-              <button onClick={() => { updateAvail(i,"is_available",!row.is_available); setTimeout(() => saveAvailability(i),100); }} style={{ width:44, height:24, borderRadius:12, border:"none", cursor:"pointer", background:row.is_available?"var(--charcoal)":"var(--border)", position:"relative", transition:"background .2s", flexShrink:0 }}>
+              <button onClick={() => { updateAvail(i,"is_available",!row.is_available); saveAvailability(i, { is_available: !row.is_available }); }}>
                 <span style={{ position:"absolute", top:3, left:row.is_available?23:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", display:"block" }}/>
               </button>
               <div style={{ width:96, fontSize:14, fontWeight:row.is_available?500:300, color:row.is_available?"var(--charcoal)":"var(--warm-gray)" }}>{DAY_NAMES[i]}</div>
