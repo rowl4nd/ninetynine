@@ -1,4 +1,4 @@
-// src/Site.jsx — Public-facing site components
+// src/Site.jsx — Public-facing website
 // Nav, Hero, Divider, ServicesList, TeamSection, BookingFlow, CancelPage
 
 import React, { useState, useEffect, useRef } from "react";
@@ -10,6 +10,7 @@ import {
   getMonthName,
   getDayName,
   dateStr,
+  usePractitioners,
   useAvailableSlots,
   ServiceGroup,
 } from "./shared.jsx";
@@ -18,7 +19,7 @@ import {
 // NAV
 // ============================================================
 
-export function Nav({ scrolled, onNav, onBook, onDash }) {
+function Nav({ scrolled, onNav, onBook, onDash }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <>
@@ -60,7 +61,7 @@ export function Nav({ scrolled, onNav, onBook, onDash }) {
 // HERO
 // ============================================================
 
-export function Hero({ onBook }) {
+function Hero({ onBook }) {
   return (
     <section className="nn-hero" id="home">
       <div className="nn-hero-accent"/>
@@ -84,7 +85,7 @@ export function Hero({ onBook }) {
 // DIVIDER
 // ============================================================
 
-export function Divider() {
+function Divider() {
   return <div className="nn-divider"><div className="nn-divider-line"/><div className="nn-divider-diamond"/><div className="nn-divider-line"/></div>;
 }
 
@@ -92,7 +93,7 @@ export function Divider() {
 // SERVICES LIST (treatments page)
 // ============================================================
 
-export function ServicesList({ practitioners, onBookWith }) {
+function ServicesList({ practitioners, onBookWith }) {
   const findPrac = (name) => practitioners.find(p => p.name === name);
   return (
     <section className="nn-section" id="services">
@@ -127,7 +128,7 @@ export function ServicesList({ practitioners, onBookWith }) {
 // TEAM SECTION
 // ============================================================
 
-export function TeamSection({ practitioners }) {
+function TeamSection({ practitioners }) {
   return (
     <section className="nn-section" id="team">
       <div className="nn-section-label">The Team</div>
@@ -156,7 +157,7 @@ export function TeamSection({ practitioners }) {
 // BOOKING FLOW (4-step public booking)
 // ============================================================
 
-export function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
+function BookingFlow({ practitioners, preselectedPrac, onClearPreselect }) {
   const [step, setStep] = useState(preselectedPrac ? 2 : 1);
   const [prac, setPrac] = useState(preselectedPrac || null);
   const [svc, setSvc] = useState(null);
@@ -479,5 +480,76 @@ export function CancelPage({ token }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================================
+// SITE (main public wrapper — exported as default)
+// ============================================================
+
+export default function Site({ onDash }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [preselectedPrac, setPreselectedPrac] = useState(null);
+  const bookRef = useRef(null);
+  const practitioners = usePractitioners();
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("vis"); }),
+      { threshold:0.08 }
+    );
+    document.querySelectorAll(".nn-fade").forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior:"smooth" });
+  const goBook = () => bookRef.current?.scrollIntoView({ behavior:"smooth" });
+  const bookWithPrac = (prac) => { setPreselectedPrac(prac); bookRef.current?.scrollIntoView({ behavior:"smooth" }); };
+
+  return (
+    <>
+      <Nav scrolled={scrolled} onNav={scrollTo} onBook={goBook} onDash={onDash}/>
+      <Hero onBook={goBook}/>
+      <Divider/>
+      <div className="nn-fade"><ServicesList practitioners={practitioners} onBookWith={bookWithPrac}/></div>
+      <Divider/>
+      <div className="nn-fade"><TeamSection practitioners={practitioners}/></div>
+      <div className="nn-fade">
+        <div className="nn-insta">
+          <div className="nn-insta-title">Follow our work</div>
+          <a href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer">@ninetyninebyk</a>
+          <p>See our latest nails, brows, lashes and more on Instagram</p>
+        </div>
+      </div>
+      <section className="nn-section nn-booking" id="booking" ref={bookRef}>
+        <div style={{ marginBottom:60 }}>
+          <div className="nn-section-label">Book Online</div>
+          <h2 className="nn-section-title">Book Your Appointment</h2>
+          <p className="nn-section-desc">Choose your practitioner, pick a treatment, and find a time that suits. Payment is taken at the salon.</p>
+        </div>
+        <BookingFlow practitioners={practitioners} preselectedPrac={preselectedPrac} onClearPreselect={() => setPreselectedPrac(null)}/>
+      </section>
+      <div className="nn-fade">
+        <section className="nn-section" id="contact">
+          <div className="nn-section-label">Find Us</div>
+          <h2 className="nn-section-title">Visit the Salon</h2>
+          <div className="nn-contact-grid">
+            <div className="nn-contact-block"><h4>Location</h4><p>ninety nine.<br/>99 Banks Road<br/>West Kirby, Wirral<br/>CH48</p></div>
+            <div className="nn-contact-block"><h4>Opening Hours</h4><p>Monday – Friday: 9am – 6pm<br/>Saturday: 9am – 5pm<br/>Sunday: Closed</p></div>
+            <div className="nn-contact-block"><h4>Get in Touch</h4><p>Instagram: <a href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer" style={{ color:"var(--gold)", textDecoration:"none" }}>@ninetyninebyk</a><br/>Book online or DM us<br/>on Instagram</p></div>
+          </div>
+        </section>
+      </div>
+      <footer className="nn-footer">
+        <img src="/logo-light.png" alt="ninety nine." className="nn-footer-logo"/>
+        99 Banks Road · West Kirby · Wirral &nbsp;·&nbsp; © {new Date().getFullYear()}
+      </footer>
+    </>
   );
 }
