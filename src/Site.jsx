@@ -1,7 +1,7 @@
 // src/Site.jsx — Public-facing site components
 // Nav, Hero, Divider, ServicesList, TeamSection, BookingFlow, CancelPage
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, IS_DEMO } from "./supabase.js";
 import {
   DEMO_SERVICES_LIST,
