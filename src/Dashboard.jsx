@@ -1,7 +1,7 @@
 // src/Dashboard.jsx — Staff-facing portal
-// Login, Bookings (calendar + list views), My Services, My Schedule
+// Login, Bookings (weekly view with drag), My Services, My Schedule
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, SUPABASE_URL, IS_DEMO } from "./supabase.js";
 import {
   DEMO_PRACTITIONERS, DEMO_SERVICES_LIST,
@@ -10,7 +10,391 @@ import {
 } from "./shared.jsx";
 
 // ============================================================
-// SERVICE FORM (add/edit a custom service)
+// WEEKLY VIEW HELPERS
+// ============================================================
+
+const HOUR_START = 7;  // 7am
+const HOUR_END = 21;   // 9pm
+const TOTAL_MINUTES = (HOUR_END - HOUR_START) * 60; // 840
+const ROW_HEIGHT = 48; // px per 30-min slot
+const PX_PER_MINUTE = ROW_HEIGHT / 30;
+
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+function addDays(d, n) {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + n);
+  return dt;
+}
+
+function formatDateISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function formatDayHeader(d) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return { dayName: days[d.getDay()], dayNum: d.getDate(), monthName: months[d.getMonth()] };
+}
+
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+function timeLabels() {
+  const labels = [];
+  for (let h = HOUR_START; h < HOUR_END; h++) {
+    const ampm = h < 12 ? "am" : "pm";
+    const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    labels.push({ time: String(h).padStart(2, "0") + ":00", label: display + ampm });
+  }
+  return labels;
+}
+
+const TIME_LABELS = timeLabels();
+const SLOT_COUNT = (HOUR_END - HOUR_START) * 2; // 30-min slots
+
+// ============================================================
+// BOOKING BLOCK (individual booking in the weekly grid)
+// ============================================================
+
+function BookingBlock({ booking, dayIndex, onDragStart, onSelect, selected }) {
+  const startMin = timeToMinutes(booking.booking_time) - HOUR_START * 60;
+  const top = startMin * PX_PER_MINUTE;
+  const height = Math.max((booking.duration || 30) * PX_PER_MINUTE, 20);
+  const isStaff = booking.booked_by === "staff";
+  const isSelected = selected?.id === booking.id;
+
+  function handleMouseDown(e) {
+    if (!isStaff) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onDragStart(e, booking, dayIndex, top);
+  }
+
+  function handleClick(e) {
+    e.stopPropagation();
+    onSelect(booking);
+  }
+
+  return (
+    <div
+      className={"nn-week-booking" + (isStaff ? " staff" : " client") + (isSelected ? " selected" : "")}
+      style={{
+        position: "absolute",
+        top: top + "px",
+        left: "2px",
+        right: "2px",
+        height: height + "px",
+        zIndex: isSelected ? 20 : (isStaff ? 10 : 5),
+        cursor: isStaff ? "grab" : "pointer",
+      }}
+      onMouseDown={handleMouseDown}
+      onTouchStart={(e) => { if (isStaff) { e.stopPropagation(); onDragStart(e, booking, dayIndex, top); } }}
+      onClick={handleClick}
+    >
+      <div className="nn-week-booking-time">{booking.booking_time?.slice(0, 5)}</div>
+      <div className="nn-week-booking-name">{booking.client_name}</div>
+      {height > 40 && (
+        <div className="nn-week-booking-svc">{booking.service_title || booking.service_name || "Service"}</div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// BOOKING DETAIL POPOVER
+// ============================================================
+
+function BookingDetail({ booking, onClose, onDone, onCancel }) {
+  if (!booking) return null;
+  const isStaff = booking.booked_by === "staff";
+  const dateObj = new Date(booking.booking_date + "T12:00:00");
+  const dayStr = dateObj.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <div className="nn-week-detail-overlay" onClick={onClose}>
+      <div className="nn-week-detail" onClick={e => e.stopPropagation()}>
+        <div className="nn-week-detail-header">
+          <div>
+            <div className="nn-week-detail-client">{booking.client_name}</div>
+            <div className={"nn-week-detail-badge" + (isStaff ? " staff" : " client")}>
+              {isStaff ? "Staff booking" : "Client booking"}
+            </div>
+          </div>
+          <button className="nn-day-detail-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="nn-week-detail-rows">
+          <div className="nn-week-detail-row"><span>Service</span><span>{booking.service_title || booking.service_name || "Service"}</span></div>
+          <div className="nn-week-detail-row"><span>Date</span><span>{dayStr}</span></div>
+          <div className="nn-week-detail-row"><span>Time</span><span>{booking.booking_time?.slice(0, 5)}</span></div>
+          <div className="nn-week-detail-row"><span>Duration</span><span>{booking.duration} min</span></div>
+          <div className="nn-week-detail-row"><span>Price</span><span>£{booking.price}</span></div>
+          <div className="nn-week-detail-row"><span>Phone</span><span>{booking.client_phone}</span></div>
+          {booking.client_email && <div className="nn-week-detail-row"><span>Email</span><span>{booking.client_email}</span></div>}
+          {booking.notes && <div className="nn-week-detail-row"><span>Notes</span><span>{booking.notes}</span></div>}
+        </div>
+        <div className="nn-week-detail-actions">
+          <button onClick={() => onDone(booking.id)} className="nn-week-btn-done">Done</button>
+          <button onClick={() => onCancel(booking.id)} className="nn-week-btn-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DRAG GHOST (shows while dragging a staff booking)
+// ============================================================
+
+function DragGhost({ booking, position }) {
+  if (!booking || !position) return null;
+  const height = Math.max((booking.duration || 30) * PX_PER_MINUTE, 20);
+  return (
+    <div
+      className="nn-week-drag-ghost"
+      style={{
+        position: "fixed",
+        top: position.y + "px",
+        left: position.x + "px",
+        width: position.width + "px",
+        height: height + "px",
+        pointerEvents: "none",
+        zIndex: 1000,
+      }}
+    >
+      <div className="nn-week-booking-time">{booking.booking_time?.slice(0, 5)}</div>
+      <div className="nn-week-booking-name">{booking.client_name}</div>
+    </div>
+  );
+}
+
+// ============================================================
+// WEEKLY VIEW COMPONENT
+// ============================================================
+
+function WeeklyView({ bookings, prac, auth, onUpdateBooking, onStatusChange, onAddBooking }) {
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [dragging, setDragging] = useState(null);
+  const [dragPos, setDragPos] = useState(null);
+  const gridRef = useRef(null);
+  const colRefs = useRef([]);
+
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayISO = formatDateISO(today);
+
+  function prevWeek() { setWeekStart(addDays(weekStart, -7)); }
+  function nextWeek() { setWeekStart(addDays(weekStart, 7)); }
+  function goToday() { setWeekStart(getMonday(new Date())); }
+
+  // Get bookings for each day
+  function bookingsForDay(dayDate) {
+    const ds = formatDateISO(dayDate);
+    return bookings.filter(b => b.booking_date === ds && b.status === "confirmed");
+  }
+
+  // ---- DRAG LOGIC ----
+  const handleDragStart = useCallback((e, booking, dayIndex, originalTop) => {
+    if (booking.booked_by !== "staff") return;
+    const isTouch = e.type === "touchstart";
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    const col = colRefs.current[dayIndex];
+    const colRect = col?.getBoundingClientRect();
+
+    setDragging({
+      booking,
+      startX: clientX,
+      startY: clientY,
+      offsetY: clientY - (colRect?.top || 0) - originalTop,
+      colWidth: colRect?.width || 120,
+    });
+    setDragPos({ x: clientX - 40, y: clientY - 10, width: colRect?.width || 120 });
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    function handleMove(e) {
+      const isTouch = e.type === "touchmove";
+      const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+      const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+      setDragPos({ x: clientX - 40, y: clientY - 10, width: dragging.colWidth });
+    }
+
+    function handleEnd(e) {
+      const isTouch = e.type === "touchend";
+      const clientX = isTouch ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = isTouch ? e.changedTouches[0].clientY : e.clientY;
+
+      // Determine which column we dropped on
+      let targetDayIndex = -1;
+      let targetMinutes = -1;
+
+      for (let i = 0; i < 7; i++) {
+        const col = colRefs.current[i];
+        if (!col) continue;
+        const rect = col.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right) {
+          targetDayIndex = i;
+          const relY = clientY - rect.top + col.scrollTop;
+          // Snap to nearest 15 minutes
+          const rawMin = (relY / PX_PER_MINUTE) + HOUR_START * 60;
+          targetMinutes = Math.round(rawMin / 15) * 15;
+          // Clamp
+          targetMinutes = Math.max(HOUR_START * 60, Math.min(targetMinutes, HOUR_END * 60 - (dragging.booking.duration || 30)));
+          break;
+        }
+      }
+
+      if (targetDayIndex >= 0 && targetMinutes >= 0) {
+        const newDate = formatDateISO(weekDays[targetDayIndex]);
+        const newTime = minutesToTime(targetMinutes);
+        if (newDate !== dragging.booking.booking_date || newTime !== dragging.booking.booking_time?.slice(0, 5)) {
+          onUpdateBooking(dragging.booking.id, newDate, newTime + ":00");
+        }
+      }
+
+      setDragging(null);
+      setDragPos(null);
+    }
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleEnd);
+    window.addEventListener("touchmove", handleMove, { passive: false });
+    window.addEventListener("touchend", handleEnd);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleEnd);
+    };
+  }, [dragging, weekDays, onUpdateBooking]);
+
+  // Week range label
+  const weekEndDate = addDays(weekStart, 6);
+  const rangeLabel = weekStart.getDate() + " " + ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][weekStart.getMonth()] +
+    " – " + weekEndDate.getDate() + " " + ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][weekEndDate.getMonth()] + " " + weekEndDate.getFullYear();
+
+  return (
+    <div>
+      {/* Week navigation */}
+      <div className="nn-week-nav">
+        <div className="nn-week-nav-left">
+          <button className="nn-week-nav-btn" onClick={prevWeek}>‹</button>
+          <button className="nn-week-nav-btn" onClick={nextWeek}>›</button>
+          <button className="nn-week-today-btn" onClick={goToday}>Today</button>
+        </div>
+        <div className="nn-week-nav-title">{rangeLabel}</div>
+        <button onClick={onAddBooking} className="nn-week-add-btn">
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Booking
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div className="nn-week-legend">
+        <span className="nn-week-legend-item"><span className="nn-week-legend-dot client"/> Client booking</span>
+        <span className="nn-week-legend-item"><span className="nn-week-legend-dot staff"/> Staff booking (draggable)</span>
+      </div>
+
+      {/* Grid */}
+      <div className="nn-week-container" ref={gridRef}>
+        {/* Time column */}
+        <div className="nn-week-time-col">
+          <div className="nn-week-corner"/>
+          <div className="nn-week-time-body">
+            {TIME_LABELS.map(t => (
+              <div className="nn-week-time-label" key={t.time} style={{ height: ROW_HEIGHT * 2 + "px" }}>
+                <span>{t.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Day columns */}
+        {weekDays.map((day, i) => {
+          const ds = formatDateISO(day);
+          const isToday = ds === todayISO;
+          const { dayName, dayNum, monthName } = formatDayHeader(day);
+          const dayBookings = bookingsForDay(day);
+
+          return (
+            <div className={"nn-week-day-col" + (isToday ? " today" : "")} key={ds}>
+              <div className={"nn-week-day-header" + (isToday ? " today" : "")}>
+                <div className="nn-week-day-name">{dayName}</div>
+                <div className={"nn-week-day-num" + (isToday ? " today" : "")}>{dayNum}</div>
+              </div>
+              <div
+                className="nn-week-day-body"
+                ref={el => colRefs.current[i] = el}
+                style={{ height: SLOT_COUNT * ROW_HEIGHT + "px", position: "relative" }}
+              >
+                {/* Grid lines */}
+                {Array.from({ length: SLOT_COUNT }, (_, si) => (
+                  <div
+                    key={si}
+                    className={"nn-week-slot-line" + (si % 2 === 0 ? " hour" : "")}
+                    style={{ top: si * ROW_HEIGHT + "px", height: ROW_HEIGHT + "px" }}
+                  />
+                ))}
+                {/* Current time indicator */}
+                {isToday && (() => {
+                  const now = new Date();
+                  const nowMin = now.getHours() * 60 + now.getMinutes() - HOUR_START * 60;
+                  if (nowMin < 0 || nowMin > TOTAL_MINUTES) return null;
+                  return <div className="nn-week-now-line" style={{ top: nowMin * PX_PER_MINUTE + "px" }}/>;
+                })()}
+                {/* Booking blocks */}
+                {dayBookings.map(b => (
+                  <BookingBlock
+                    key={b.id}
+                    booking={b}
+                    dayIndex={i}
+                    onDragStart={handleDragStart}
+                    onSelect={setSelectedBooking}
+                    selected={selectedBooking}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Drag ghost */}
+      <DragGhost booking={dragging?.booking} position={dragPos}/>
+
+      {/* Booking detail popover */}
+      <BookingDetail
+        booking={selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        onDone={(id) => { onStatusChange(id, "completed"); setSelectedBooking(null); }}
+        onCancel={(id) => { onStatusChange(id, "cancelled"); setSelectedBooking(null); }}
+      />
+    </div>
+  );
+}
+
+// ============================================================
+// SERVICE FORM (add/edit a custom service) — UNCHANGED
 // ============================================================
 
 function ServiceForm({ practitionerId, token, existingService, existingGroups, onSave, onCancel }) {
@@ -134,7 +518,7 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
 }
 
 // ============================================================
-// SERVICE CARD (display a service in the dashboard list)
+// SERVICE CARD — UNCHANGED
 // ============================================================
 
 function ServiceCard({ svc, onEdit, onRemove }) {
@@ -160,7 +544,7 @@ function ServiceCard({ svc, onEdit, onRemove }) {
 }
 
 // ============================================================
-// STAFF BOOKING FORM (practitioners can add bookings manually)
+// STAFF BOOKING FORM — updated with booked_by: 'staff'
 // ============================================================
 
 function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
@@ -203,6 +587,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         duration: totalDuration,
         price: totalPrice,
         notes: (addon ? "Add-on: " + addon.title + ". " : "") + (notes || ""),
+        booked_by: "staff",
       }, token);
       setDone(true);
     } catch (e) {
@@ -392,10 +777,7 @@ export default function Dashboard({ onBack }) {
   const [blockSaving, setBlockSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [viewMode, setViewMode] = useState("calendar");
-  const [dashMonth, setDashMonth] = useState(new Date().getMonth());
-  const [dashYear, setDashYear] = useState(new Date().getFullYear());
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
   async function handleLogin(e) {
@@ -410,24 +792,30 @@ export default function Dashboard({ onBack }) {
     } catch (e) { setLoginErr(e.message); }
   }
 
+  // Fetch bookings for current week
   useEffect(() => {
     if (!auth || !prac || tab !== "bookings") return;
     if (IS_DEMO) {
-      const demoToday = new Date().toISOString().split("T")[0];
+      const today = new Date();
+      const todayStr = formatDateISO(today);
+      const tomorrowStr = formatDateISO(addDays(today, 1));
+      const dayAfterStr = formatDateISO(addDays(today, 2));
       setBookings([
-        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:demoToday, booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service_title:"Gel Manicure" },
-        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:demoToday, booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service_title:"Lash Lift & Tint" },
-        { id:"d3", client_name:"Lucy T.", client_phone:"07700 111222", booking_date:dateStr(new Date().getFullYear(), new Date().getMonth(), Math.min(new Date().getDate()+1, getDaysInMonth(new Date().getFullYear(), new Date().getMonth()))), booking_time:"09:30:00", duration:45, price:35, status:"confirmed", service_title:"Brow Lamination" },
-        { id:"d4", client_name:"Hannah R.", client_phone:"07700 333444", booking_date:dateStr(new Date().getFullYear(), new Date().getMonth(), Math.min(new Date().getDate()+2, getDaysInMonth(new Date().getFullYear(), new Date().getMonth()))), booking_time:"14:00:00", duration:60, price:55, status:"confirmed", service_title:"Luxury Facial" },
+        { id:"d1", client_name:"Sarah J.", client_phone:"07700 123456", booking_date:todayStr, booking_time:"10:00:00", duration:45, price:30, status:"confirmed", service_title:"Gel Manicure", booked_by:"client" },
+        { id:"d2", client_name:"Emma W.", client_phone:"07700 654321", booking_date:todayStr, booking_time:"11:30:00", duration:60, price:40, status:"confirmed", service_title:"Lash Lift & Tint", booked_by:"client" },
+        { id:"d3", client_name:"Lucy T.", client_phone:"07700 111222", booking_date:tomorrowStr, booking_time:"09:30:00", duration:45, price:35, status:"confirmed", service_title:"Brow Lamination", booked_by:"staff" },
+        { id:"d4", client_name:"Hannah R.", client_phone:"07700 333444", booking_date:dayAfterStr, booking_time:"14:00:00", duration:60, price:55, status:"confirmed", service_title:"Luxury Facial", booked_by:"staff" },
+        { id:"d5", client_name:"Megan P.", client_phone:"07700 555666", booking_date:todayStr, booking_time:"14:30:00", duration:75, price:50, status:"confirmed", service_title:"Gel Manicure & Toes", booked_by:"client" },
       ]);
       return;
     }
     setLoading(true);
-    const monthStart = dashYear+"-"+String(dashMonth+1).padStart(2,"0")+"-01";
-    const monthEnd = dashYear+"-"+String(dashMonth+1).padStart(2,"0")+"-"+getDaysInMonth(dashYear,dashMonth);
+    const weekEnd = addDays(weekStart, 6);
+    const startStr = formatDateISO(weekStart);
+    const endStr = formatDateISO(weekEnd);
     supabase.query("bookings", {
       select:"*",
-      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+monthStart+"&booking_date=lte."+monthEnd+"&status=eq.confirmed&order=booking_date,booking_time",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+startStr+"&booking_date=lte."+endStr+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
     }).then(async (rows) => {
       if (rows.length > 0) {
@@ -459,7 +847,7 @@ export default function Dashboard({ onBack }) {
       }
       setBookings(rows);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [auth, prac, tab, dashMonth, dashYear]);
+  }, [auth, prac, tab, weekStart]);
 
   useEffect(() => {
     if (!auth || !prac || !showStaffBooking) return;
@@ -473,10 +861,12 @@ export default function Dashboard({ onBack }) {
 
   function refreshBookings() {
     if (IS_DEMO) return;
-    const today = new Date().toISOString().split("T")[0];
+    const weekEnd = addDays(weekStart, 6);
+    const startStr = formatDateISO(weekStart);
+    const endStr = formatDateISO(weekEnd);
     supabase.query("bookings", {
       select:"*",
-      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+today+"&status=eq.confirmed&order=booking_date,booking_time",
+      filters:"&practitioner_id=eq."+prac.id+"&booking_date=gte."+startStr+"&booking_date=lte."+endStr+"&status=eq.confirmed&order=booking_date,booking_time",
       token:auth.access_token,
     }).then(async (rows) => {
       if (rows.length > 0) {
@@ -508,6 +898,26 @@ export default function Dashboard({ onBack }) {
       }
       setBookings(rows);
     }).catch(console.error);
+  }
+
+  async function handleUpdateBooking(bookingId, newDate, newTime) {
+    if (IS_DEMO) {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
+      return;
+    }
+    try {
+      await supabase.update("bookings", { booking_date: newDate, booking_time: newTime }, "id=eq." + bookingId, auth.access_token);
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
+    } catch (e) {
+      console.error(e);
+      alert("Error moving booking. Please try again.");
+    }
+  }
+
+  async function updateStatus(bookingId, status) {
+    if (IS_DEMO) { setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b)); return; }
+    await supabase.update("bookings", { status }, "id=eq."+bookingId, auth.access_token);
+    setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b));
   }
 
   useEffect(() => {
@@ -542,14 +952,8 @@ export default function Dashboard({ onBack }) {
     }).catch(console.error);
   }, [auth, prac, tab]);
 
-  async function updateStatus(bookingId, status) {
-    if (IS_DEMO) { setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b)); return; }
-    await supabase.update("bookings", { status }, "id=eq."+bookingId, auth.access_token);
-    setBookings(prev => prev.map(b => b.id===bookingId?{...b,status}:b));
-  }
-
-  async function saveAvailability(day, overrides = {}) {
-    const row = { ...availability[day], ...overrides };
+  async function saveAvailability(day) {
+    const row = availability[day];
     if (IS_DEMO) return;
     try {
       const res = await fetch(SUPABASE_URL+"/rest/v1/availability?practitioner_id=eq."+prac.id+"&day_of_week=eq."+day, {
@@ -632,7 +1036,7 @@ export default function Dashboard({ onBack }) {
       </div>
 
       <div className="nn-dash-tabs">
-        <button className={"nn-dash-tab"+(tab==="bookings"?" on":"")} onClick={() => setTab("bookings")}>Bookings {tab==="bookings"&&upcoming.length>0?"("+upcoming.length+")":""}</button>
+        <button className={"nn-dash-tab"+(tab==="bookings"?" on":"")} onClick={() => setTab("bookings")}>Bookings</button>
         <button className={"nn-dash-tab"+(tab==="services"?" on":"")} onClick={() => setTab("services")}>My Services</button>
         <button className={"nn-dash-tab"+(tab==="schedule"?" on":"")} onClick={() => setTab("schedule")}>My Schedule</button>
       </div>
@@ -647,124 +1051,17 @@ export default function Dashboard({ onBack }) {
               onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
               onCancel={() => setShowStaffBooking(false)}
             />
+          ) : loading ? (
+            <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
           ) : (
-            <>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
-                <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={() => setViewMode("calendar")} style={{ padding:"8px 18px", background:viewMode==="calendar"?"var(--charcoal)":"none", color:viewMode==="calendar"?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(viewMode==="calendar"?"var(--charcoal)":"var(--border)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:11, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>Calendar</button>
-                  <button onClick={() => setViewMode("list")} style={{ padding:"8px 18px", background:viewMode==="list"?"var(--charcoal)":"none", color:viewMode==="list"?"var(--cream)":"var(--charcoal)", border:"1.5px solid "+(viewMode==="list"?"var(--charcoal)":"var(--border)"), cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:11, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>List</button>
-                </div>
-                <button onClick={() => setShowStaffBooking(true)} style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"1.5px", textTransform:"uppercase" }}>
-                  <span style={{ fontSize:16, lineHeight:1 }}>+</span> Add Booking
-                </button>
-              </div>
-
-              {loading ? (
-                <div style={{ color:"var(--warm-gray)", padding:40, textAlign:"center" }}>Loading bookings...</div>
-              ) : viewMode === "calendar" ? (
-                <div>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-                    <button className="nn-cal-btn" onClick={() => { if(dashMonth===0){setDashMonth(11);setDashYear(dashYear-1)}else setDashMonth(dashMonth-1) }}>‹</button>
-                    <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:400 }}>{getMonthName(dashMonth)} {dashYear}</h3>
-                    <button className="nn-cal-btn" onClick={() => { if(dashMonth===11){setDashMonth(0);setDashYear(dashYear+1)}else setDashMonth(dashMonth+1) }}>›</button>
-                  </div>
-                  <div className="nn-dash-cal-wkdays">
-                    {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}
-                  </div>
-                  <div className="nn-dash-cal-grid">
-                    {(() => {
-                      const first = (new Date(dashYear,dashMonth,1).getDay()+6)%7;
-                      const total = getDaysInMonth(dashYear,dashMonth);
-                      const today = new Date();
-                      const cells = [];
-                      const prevMonth = dashMonth===0?11:dashMonth-1;
-                      const prevYear = dashMonth===0?dashYear-1:dashYear;
-                      const prevTotal = getDaysInMonth(prevYear,prevMonth);
-                      for(let i=0;i<first;i++){
-                        const d = prevTotal - first + 1 + i;
-                        cells.push(<div className="nn-dash-cal-cell other-month" key={"p"+i}><div className="nn-dash-cal-cell-day">{d}</div></div>);
-                      }
-                      for(let d=1;d<=total;d++){
-                        const ds = dateStr(dashYear, dashMonth, d);
-                        const isToday = d===today.getDate()&&dashMonth===today.getMonth()&&dashYear===today.getFullYear();
-                        const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
-                        cells.push(
-                          <div className={"nn-dash-cal-cell"+(isToday?" today":"")+(selectedDay&&selectedDay.day===d&&selectedDay.month===dashMonth&&selectedDay.year===dashYear?" picked":"")} key={d} onClick={() => setSelectedDay({day:d,month:dashMonth,year:dashYear})}>
-                            <div className="nn-dash-cal-cell-day">{d}</div>
-                            {dayBookings.slice(0,2).map(b => (
-                              <div className="nn-dash-cal-booking" key={b.id}>
-                                <strong>{b.booking_time?.slice(0,5)}</strong> {b.client_name}
-                              </div>
-                            ))}
-                            {dayBookings.length > 2 && (
-                              <div style={{ fontSize:10, color:"var(--gold)", fontWeight:500, marginTop:2 }}>+{dayBookings.length - 2} more</div>
-                            )}
-                          </div>
-                        );
-                      }
-                      const remainder = (first + total) % 7;
-                      if(remainder > 0) for(let i=1;i<=7-remainder;i++){
-                        cells.push(<div className="nn-dash-cal-cell other-month" key={"n"+i}><div className="nn-dash-cal-cell-day">{i}</div></div>);
-                      }
-                      return cells;
-                    })()}
-                  </div>
-                  {selectedDay && selectedDay.month===dashMonth && selectedDay.year===dashYear && (() => {
-                    const ds = dateStr(selectedDay.year, selectedDay.month, selectedDay.day);
-                    const dayBookings = upcoming.filter(b => b.booking_date===ds).sort((a,b) => (a.booking_time||"").localeCompare(b.booking_time||""));
-                    const dayLabel = getDayName(selectedDay.year,selectedDay.month,selectedDay.day)+" "+selectedDay.day+" "+getMonthName(selectedDay.month);
-                    return (
-                      <div className="nn-day-detail">
-                        <div className="nn-day-detail-header">
-                          <div className="nn-day-detail-title">{dayLabel}</div>
-                          <button className="nn-day-detail-close" onClick={(e) => { e.stopPropagation(); setSelectedDay(null); }}>✕</button>
-                        </div>
-                        {dayBookings.length === 0 ? (
-                          <div style={{ color:"var(--warm-gray)", fontSize:14, fontWeight:300, padding:"12px 0" }}>No bookings on this day.</div>
-                        ) : (
-                          dayBookings.map(b => (
-                            <div className="nn-day-booking-full" key={b.id}>
-                              <div>
-                                <div style={{ fontWeight:500, marginBottom:3 }}>{b.booking_time?.slice(0,5)} — {b.client_name}</div>
-                                <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||"Service"} · {b.duration} min · £{b.price}</div>
-                                <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.client_phone}{b.client_email ? " · "+b.client_email : ""}</div>
-                              </div>
-                              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                                <button onClick={(e) => { e.stopPropagation(); updateStatus(b.id,"completed"); }} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
-                                <button onClick={(e) => { e.stopPropagation(); updateStatus(b.id,"cancelled"); }} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                upcoming.length === 0 ? (
-                  <div style={{ padding:48, textAlign:"center", color:"var(--warm-gray)", fontSize:15, fontWeight:300 }}>No upcoming bookings — enjoy the break!</div>
-                ) : (
-                  <div>
-                    {upcoming.map(b => (
-                      <div className="nn-booking-card" key={b.id}>
-                        <div>
-                          <div style={{ fontWeight:500, marginBottom:4 }}>{b.client_name}</div>
-                          <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300 }}>{b.service_title||b.service_name||b.service?.name||b.notes||"Service"} · {b.duration} min · £{b.price}</div>
-                          <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{b.booking_date} at {b.booking_time?.slice(0,5)} · {b.client_phone}</div>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                          <span className="nn-booking-status confirmed">confirmed</span>
-                          <div style={{ display:"flex", gap:6 }}>
-                            <button onClick={() => updateStatus(b.id,"completed")} style={{ padding:"6px 14px", background:"var(--green)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Done</button>
-                            <button onClick={() => updateStatus(b.id,"cancelled")} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              )}
-            </>
+            <WeeklyView
+              bookings={upcoming}
+              prac={prac}
+              auth={auth}
+              onUpdateBooking={handleUpdateBooking}
+              onStatusChange={updateStatus}
+              onAddBooking={() => setShowStaffBooking(true)}
+            />
           )}
         </div>
       )}
@@ -833,7 +1130,7 @@ export default function Dashboard({ onBack }) {
           </div>
           {availability.map((row, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:16, padding:"14px 20px", background:row.is_available?"var(--warm-white)":"transparent", border:"1.5px solid var(--border)", marginBottom:8, opacity:row.is_available?1:.5, transition:"all .2s" }}>
-              <button onClick={() => { updateAvail(i,"is_available",!row.is_available); saveAvailability(i, { is_available: !row.is_available }); }} style={{ width:44, height:24, borderRadius:12, border:"none", cursor:"pointer", background:row.is_available?"var(--charcoal)":"var(--border)", position:"relative", transition:"background .2s", flexShrink:0 }}>
+              <button onClick={() => { updateAvail(i,"is_available",!row.is_available); setTimeout(() => saveAvailability(i),100); }} style={{ width:44, height:24, borderRadius:12, border:"none", cursor:"pointer", background:row.is_available?"var(--charcoal)":"var(--border)", position:"relative", transition:"background .2s", flexShrink:0 }}>
                 <span style={{ position:"absolute", top:3, left:row.is_available?23:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", display:"block" }}/>
               </button>
               <div style={{ width:96, fontSize:14, fontWeight:row.is_available?500:300, color:row.is_available?"var(--charcoal)":"var(--warm-gray)" }}>{DAY_NAMES[i]}</div>
