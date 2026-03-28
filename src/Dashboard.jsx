@@ -71,7 +71,10 @@ const SLOT_COUNT = (HOUR_END - HOUR_START) * 2; // 30-min slots
 
 // ============================================================
 // BOOKING BLOCK (individual booking in the weekly grid)
+// Long-press on touch to initiate drag (avoids scroll conflicts)
 // ============================================================
+
+const LONG_PRESS_MS = 400;
 
 function BookingBlock({ booking, dayIndex, onDragStart, onSelect, selected }) {
   const startMin = timeToMinutes(booking.booking_time) - HOUR_START * 60;
@@ -79,6 +82,9 @@ function BookingBlock({ booking, dayIndex, onDragStart, onSelect, selected }) {
   const height = Math.max((booking.duration || 30) * PX_PER_MINUTE, 20);
   const isStaff = booking.booked_by === "staff";
   const isSelected = selected?.id === booking.id;
+  const longPressTimer = useRef(null);
+  const touchStartPos = useRef(null);
+  const [pressing, setPressing] = useState(false);
 
   function handleMouseDown(e) {
     if (!isStaff) return;
@@ -87,6 +93,46 @@ function BookingBlock({ booking, dayIndex, onDragStart, onSelect, selected }) {
     onDragStart(e, booking, dayIndex, top);
   }
 
+  function handleTouchStart(e) {
+    if (!isStaff) return;
+    e.stopPropagation();
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    setPressing(true);
+    longPressTimer.current = setTimeout(() => {
+      // Long press confirmed — start drag
+      setPressing(false);
+      if (navigator.vibrate) navigator.vibrate(30);
+      onDragStart(e, booking, dayIndex, top);
+    }, LONG_PRESS_MS);
+  }
+
+  function handleTouchMove(e) {
+    // If finger moves more than 10px before long press fires, cancel it (user is scrolling)
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      setPressing(false);
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (longPressTimer.current) {
+      // Long press didn't fire — treat as tap
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      setPressing(false);
+      onSelect(booking);
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }, []);
+
   function handleClick(e) {
     e.stopPropagation();
     onSelect(booking);
@@ -94,18 +140,20 @@ function BookingBlock({ booking, dayIndex, onDragStart, onSelect, selected }) {
 
   return (
     <div
-      className={"nn-week-booking" + (isStaff ? " staff" : " client") + (isSelected ? " selected" : "")}
+      className={"nn-week-booking" + (isStaff ? " staff" : " client") + (isSelected ? " selected" : "") + (pressing ? " pressing" : "")}
       style={{
         position: "absolute",
         top: top + "px",
         left: "2px",
         right: "2px",
         height: height + "px",
-        zIndex: isSelected ? 20 : (isStaff ? 10 : 5),
+        zIndex: isSelected ? 20 : (pressing ? 20 : (isStaff ? 10 : 5)),
         cursor: isStaff ? "grab" : "pointer",
       }}
       onMouseDown={handleMouseDown}
-      onTouchStart={(e) => { if (isStaff) { e.stopPropagation(); onDragStart(e, booking, dayIndex, top); } }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={handleClick}
     >
       <div className="nn-week-booking-time">{booking.booking_time?.slice(0, 5)}</div>
@@ -212,6 +260,8 @@ function WeeklyView({ bookings, prac, auth, onUpdateBooking, onStatusChange, onA
   }
 
   // ---- DRAG LOGIC ----
+  const lastTouchPos = useRef(null);
+
   const handleDragStart = useCallback((e, booking, dayIndex, originalTop) => {
     if (booking.booked_by !== "staff") return;
     const isTouch = e.type === "touchstart";
@@ -220,12 +270,15 @@ function WeeklyView({ bookings, prac, auth, onUpdateBooking, onStatusChange, onA
     const col = colRefs.current[dayIndex];
     const colRect = col?.getBoundingClientRect();
 
+    lastTouchPos.current = { x: clientX, y: clientY };
+
     setDragging({
       booking,
       startX: clientX,
       startY: clientY,
       offsetY: clientY - (colRect?.top || 0) - originalTop,
       colWidth: colRect?.width || 120,
+      isTouch,
     });
     setDragPos({ x: clientX - 40, y: clientY - 10, width: colRect?.width || 120 });
   }, []);
@@ -235,15 +288,19 @@ function WeeklyView({ bookings, prac, auth, onUpdateBooking, onStatusChange, onA
 
     function handleMove(e) {
       const isTouch = e.type === "touchmove";
+      // Prevent page scroll while dragging on touch
+      if (isTouch) e.preventDefault();
       const clientX = isTouch ? e.touches[0].clientX : e.clientX;
       const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+      lastTouchPos.current = { x: clientX, y: clientY };
       setDragPos({ x: clientX - 40, y: clientY - 10, width: dragging.colWidth });
     }
 
     function handleEnd(e) {
       const isTouch = e.type === "touchend";
-      const clientX = isTouch ? e.changedTouches[0].clientX : e.clientX;
-      const clientY = isTouch ? e.changedTouches[0].clientY : e.clientY;
+      // touchend has no coordinates — use last known position
+      const clientX = isTouch ? lastTouchPos.current.x : e.clientX;
+      const clientY = isTouch ? lastTouchPos.current.y : e.clientY;
 
       // Determine which column we dropped on
       let targetDayIndex = -1;
