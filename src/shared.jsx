@@ -27,7 +27,7 @@ export const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:0
 
 export const TREATMENT_CATEGORIES = [
   { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
-  { id: "toes", title: "Toes", icon: "✦", description: "Gel toes & pedicures", practitioners: ["Holly"] },
+  { id: "toes", title: "Toes", icon: "✦", description: "Gel toes, pedicures & toenail reconstruction", practitioners: ["Holly"] },
   { id: "brows", title: "Brows", icon: "✦", description: "Lamination, wax & tint", practitioners: ["Lisa"] },
   { id: "lashes", title: "Lashes", icon: "✦", description: "Lash lifts & tints", practitioners: ["Inke", "Lisa"] },
   { id: "facials", title: "Facials", icon: "✦", description: "Express & luxury facials", practitioners: ["Lisa"] },
