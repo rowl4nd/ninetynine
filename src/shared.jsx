@@ -12,8 +12,8 @@ export const DEMO_PRACTITIONERS = [
   { id: "1", name: "Lisa", role: "Facial, Lash Lift & Brow Artist", specialty: "Facials & Skin", color: "#C9A96E", photo: "/team/Lisa.jpg", instagram: "@elisehouseuk" },
   { id: "2", name: "Inke", role: "Manicurist & Lash Lift Technician", specialty: "Nails & Lashes", color: "#B8A08A", photo: "/team/Inke.jpg", instagram: "@byinke_x" },
   { id: "3", name: "Holly", role: "Gel Toes & Toenail Reconstruction", specialty: "Gel Toes", color: "#C4A882", photo: "/team/Holly.jpg", instagram: "@painted__byholly" },
-  { id: "4", name: "Kristen", role: "Salon Owner & Senior Manicurist", specialty: "Gel & Nail Art", color: "#A89080", photo: "/team/Kristen.jpg", instagram: "@nailsbykristen_x" },
-  { id: "5", name: "Melissa", role: "Nail Technician", specialty: "Nail Art", color: "#BCA68E", photo: null, instagram: null },
+  { id: "4", name: "Kristen", role: "Salon Owner & Manicurist", specialty: "Gel & Nail Art", color: "#A89080", photo: "/team/Kristen.jpg", instagram: "@nailsbykristen_x" },
+  { id: "5", name: "Melissa", role: Manicurist", specialty: "Nail Art", color: "#BCA68E", photo: null, instagram: null },
 ];
 
 export const DEMO_SERVICES_LIST = [
@@ -26,10 +26,10 @@ export const DEMO_SERVICES_LIST = [
 export const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30"];
 
 export const TREATMENT_CATEGORIES = [
-  { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures, acrylics, BIAB & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
+  { id: "hands", title: "Hands", icon: "✦", description: "Gel manicures & nail art", practitioners: ["Kristen", "Inke", "Melissa"] },
   { id: "toes", title: "Toes", icon: "✦", description: "Gel toes & pedicures", practitioners: ["Holly"] },
   { id: "brows", title: "Brows", icon: "✦", description: "Lamination, wax & tint", practitioners: ["Lisa"] },
-  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash lifts, tints & extensions", practitioners: ["Inke", "Lisa"] },
+  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash lifts & tints", practitioners: ["Inke", "Lisa"] },
   { id: "facials", title: "Facials", icon: "✦", description: "Express & luxury facials", practitioners: ["Lisa"] },
 ];
 
