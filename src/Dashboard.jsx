@@ -747,7 +747,7 @@ export default function StaffDashboard() {
       } catch (err) { console.error(err); }
     }
     loadDashboardData();
-  } White, [practitioner, token]);
+  }, [practitioner, token]);
 
   const handleBookingUpdated = (id, action, payload) => {
     setBookings(prev => prev.map(b => {
