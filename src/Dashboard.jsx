@@ -1088,32 +1088,24 @@ export default function Dashboard({ onBack }) {
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Booking Window
           </div>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How far in advance can clients book with you?</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
-            {[2, 4, 6, 8, 12].map(weeks => {
-              const current = prac?.booking_window_weeks || 8;
-              const isActive = current === weeks;
-              return (
-                <button key={weeks} onClick={async () => {
-                  if (IS_DEMO) return;
-                  try {
-                    await supabase.update("practitioners", { booking_window_weeks: weeks }, "id=eq." + prac.id, auth.access_token);
-                    setPrac(prev => ({ ...prev, booking_window_weeks: weeks }));
-                  } catch (e) { console.error(e); }
-                }} style={{
-                  padding: "10px 18px",
-                  background: isActive ? "var(--charcoal)" : "none",
-                  color: isActive ? "var(--cream)" : "var(--charcoal)",
-                  border: isActive ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)",
-                  cursor: "pointer",
-                  fontFamily: "'Outfit',sans-serif",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  transition: "all .2s",
-                }}>
-                  {weeks} weeks
-                </button>
-              );
-            })}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
+            <select
+              value={prac?.booking_window_weeks || 8}
+              onChange={async (e) => {
+                const weeks = parseInt(e.target.value);
+                if (IS_DEMO) return;
+                try {
+                  await supabase.update("practitioners", { booking_window_weeks: weeks }, "id=eq." + prac.id, auth.access_token);
+                  setPrac(prev => ({ ...prev, booking_window_weeks: weeks }));
+                } catch (e) { console.error(e); }
+              }}
+              style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer", minWidth: 160 }}
+            >
+              {Array.from({ length: 25 }, (_, i) => i + 2).map(w => (
+                <option key={w} value={w}>{w} weeks</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>ahead</span>
           </div>
           <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: -24, marginBottom: 32 }}>
             Clients will only be able to book up to {prac?.booking_window_weeks || 8} weeks ahead. You'll need to add a <code style={{ fontSize: 11, background: "var(--blush)", padding: "1px 5px" }}>booking_window_weeks</code> column to your practitioners table in Supabase for this to take effect.
