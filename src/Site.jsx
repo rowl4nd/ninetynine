@@ -419,8 +419,11 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                   for (let d = 1; d <= total; d++) {
                     const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
                     const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    const jsDay = new Date(cY, cM, d).getDay();
-                    const unavail = unavailableDays.has(jsDay);
+const jsDay = new Date(cY, cM, d).getDay();
+const unavail = unavailableDays.has(jsDay);
+const windowWeeks = prac?.booking_window_weeks || 8;
+const maxDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + windowWeeks * 7);
+const tooFar = new Date(cY, cM, d) > maxDate;
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     cells.push(
                       <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || unavail ? " off" : "") + (isNow ? " now" : "")}
