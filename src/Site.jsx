@@ -27,7 +27,6 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
     <>
       <nav className={"nn-nav" + (scrolled ? " scrolled" : "")}>
         <img src="/logo-dark.png" alt="ninety nine." className="nn-logo" onClick={() => { onNav("home"); close(); }} />
-        {/* Desktop links */}
         <ul className="nn-nav-links">
           <li><a onClick={() => onNav("services")}>Services</a></li>
           <li><a onClick={() => onNav("team")}>Team</a></li>
@@ -35,7 +34,6 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
           <li><a onClick={onDash} style={{ opacity: 0.5, fontSize: 11 }}>Staff Login</a></li>
           <li><button className="nn-nav-book" onClick={onBook}>Book Now</button></li>
         </ul>
-        {/* Mobile hamburger */}
         <button className="nn-mobile-toggle" onClick={() => setMobileOpen(o => !o)} aria-label="Menu">
           {mobileOpen
             ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -43,8 +41,6 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
           }
         </button>
       </nav>
-
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="nn-mobile-nav">
           {[
@@ -169,7 +165,15 @@ function TeamSection({ practitioners }) {
 }
 
 // ============================================================
-// BOOKING FLOW — shared logic, two render modes
+// EMAIL VALIDATION HELPER
+// ============================================================
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+// ============================================================
+// BOOKING FLOW
 // ============================================================
 
 function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerMode = false, onClose }) {
@@ -184,12 +188,16 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const [clientName, setClientName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [customServices, setCustomServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const now = new Date();
   const [cM, setCM] = useState(now.getMonth());
   const [cY, setCY] = useState(now.getFullYear());
   const labels = ["Practitioner", "Service", "Date & Time", "Confirm"];
+
+  const emailValid = isValidEmail(email);
+  const canConfirm = clientName.trim() && phone.trim() && emailValid && !saving;
 
   useEffect(() => {
     if (preselectedPrac) {
@@ -225,15 +233,22 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   function handleSelectService(s) { setSvc(s); setAddon(null); }
 
   async function handleConfirm() {
+    if (!canConfirm) return;
     if (IS_DEMO) { setDone(true); return; }
     setSaving(true);
     try {
+      const serviceTitle = svc.title + (addon ? " + " + addon.title : "");
       await supabase.insert("bookings", {
-        practitioner_id: prac.id, service_id: svc.id,
-        service_title: svc.title + (addon ? " + " + addon.title : ""),
-        client_name: clientName, client_phone: phone, client_email: email,
+        practitioner_id: prac.id,
+        service_id: svc.id,
+        service_title: serviceTitle,
+        client_name: clientName.trim(),
+        client_phone: phone.trim(),
+        client_email: email.trim(),
         booking_date: dateStr(date.year, date.month, date.day),
-        booking_time: time + ":00", duration: totalDuration, price: totalPrice,
+        booking_time: time + ":00",
+        duration: totalDuration,
+        price: totalPrice,
         notes: addon ? "Add-on: " + addon.title : "",
       });
       setDone(true);
@@ -245,7 +260,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: drawerMode ? 20 : 24, fontWeight: 400, marginBottom: 20 }}>{children}</h3>
   );
 
-  // Step indicator — compact for drawer, full stepper for desktop
   const StepIndicator = () => drawerMode ? (
     <div className="nn-booking-drawer-step-indicator">
       Step <span>{step}</span> of <span>{totalSteps}</span>
@@ -275,7 +289,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
         </div>
         <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, textAlign: "center", marginBottom: 10 }}>You're all booked</h2>
         <p style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.65 }}>
-          {clientName}, your appointment with {prac.name} is confirmed for {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} at {time}.<br />See you at 99 Banks Road!
+          {clientName}, your appointment with {prac.name} is confirmed for {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} at {time}.<br />
+          A confirmation has been sent to {email}. See you at 99 Banks Road!
         </p>
         {drawerMode && onClose && (
           <div style={{ textAlign: "center", marginTop: 32 }}>
@@ -428,14 +443,46 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
             <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{totalDuration} min</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Price</span><span className="nn-confirm-val" style={{ color: "var(--gold)", fontWeight: 600 }}>£{totalPrice}</span></div>
             <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label className="nn-input-label">Your Name</label><input className="nn-input" type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full name" /></div>
-              <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx" /></div>
-              <div><label className="nn-input-label">Email (optional)</label><input className="nn-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="for confirmation email" /></div>
+              <div>
+                <label className="nn-input-label">Your Name</label>
+                <input className="nn-input" type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full name" />
+              </div>
+              <div>
+                <label className="nn-input-label">Phone Number</label>
+                <input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx" />
+              </div>
+              <div>
+                <label className="nn-input-label">
+                  Email Address
+                  {emailTouched && !emailValid && (
+                    <span style={{ color: "var(--red)", fontWeight: 400, letterSpacing: 0, textTransform: "none", marginLeft: 8, fontSize: 11 }}>
+                      Please enter a valid email
+                    </span>
+                  )}
+                </label>
+                <input
+                  className="nn-input"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
+                  placeholder="your@email.com"
+                  style={emailTouched && !emailValid ? { borderColor: "var(--red)" } : {}}
+                />
+                <div style={{ fontSize: 11, color: "var(--warm-gray)", marginTop: 5, fontWeight: 300 }}>
+                  Your confirmation and reminder will be sent here.
+                </div>
+              </div>
             </div>
           </div>
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => setStep(dateStep)}>Back</button>
-            <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!clientName || !phone || saving} style={{ opacity: clientName && phone && !saving ? 1 : .35 }}>
+            <button
+              className="nn-btn nn-btn-gold"
+              onClick={handleConfirm}
+              disabled={!canConfirm}
+              style={{ opacity: canConfirm ? 1 : .35 }}
+            >
               {saving ? "Booking..." : "Confirm Booking"}
             </button>
           </div>
@@ -524,7 +571,7 @@ export function CancelPage({ token }) {
 }
 
 // ============================================================
-// SITE — main public wrapper
+// SITE
 // ============================================================
 
 export default function Site({ onDash }) {
@@ -556,44 +603,30 @@ export default function Site({ onDash }) {
     return () => obs.disconnect();
   }, []);
 
-  // Lock body scroll when drawer is open
   useEffect(() => {
-    if (drawerOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (drawerOpen) { document.body.style.overflow = "hidden"; }
+    else { document.body.style.overflow = ""; }
     return () => { document.body.style.overflow = ""; };
   }, [drawerOpen]);
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   const handleBook = () => {
-    if (isMobile) {
-      setDrawerOpen(true);
-    } else {
-      bookRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (isMobile) { setDrawerOpen(true); }
+    else { bookRef.current?.scrollIntoView({ behavior: "smooth" }); }
   };
 
   const bookWithPrac = (prac) => {
     setPreselectedPrac(prac);
-    if (isMobile) {
-      setDrawerOpen(true);
-    } else {
-      bookRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (isMobile) { setDrawerOpen(true); }
+    else { bookRef.current?.scrollIntoView({ behavior: "smooth" }); }
   };
 
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    setPreselectedPrac(null);
-  };
+  const closeDrawer = () => { setDrawerOpen(false); setPreselectedPrac(null); };
 
   return (
     <>
       <Nav scrolled={scrolled} onNav={scrollTo} onBook={handleBook} onDash={onDash} />
-
       <Hero onBook={handleBook} />
       <Divider />
       <div className="nn-fade"><ServicesList practitioners={practitioners} onBookWith={bookWithPrac} /></div>
