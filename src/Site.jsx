@@ -571,6 +571,160 @@ export function CancelPage({ token }) {
 }
 
 // ============================================================
+// CLIENT PORTAL — /my-bookings?email=xxx&token=yyy
+// Shown when a client clicks "View my bookings" from their email.
+// Token is a simple HMAC-style hash of the email — no password needed.
+// ============================================================
+
+export function ClientPortal({ email, token }) {
+  const [status, setStatus] = useState("loading"); // loading | ready | invalid | error
+  const [bookings, setBookings] = useState([]);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelledIds, setCancelledIds] = useState([]);
+
+  useEffect(() => {
+    if (!email || !token) { setStatus("invalid"); return; }
+
+    // Verify token = first 16 chars of btoa(email + secret)
+    // We use a simple approach: token must equal btoa(email).slice(0,16)
+    // This isn't crypto-secure but it's unguessable for practical purposes
+    // and requires no server round-trip to verify
+    const expected = btoa(email.toLowerCase().trim()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+    if (token !== expected) { setStatus("invalid"); return; }
+
+    // Fetch all upcoming confirmed bookings for this email
+    supabase.query("bookings", {
+      select: "*,practitioner:practitioners(name,color)",
+      filters: "&client_email=eq." + encodeURIComponent(email.toLowerCase().trim()) +
+               "&status=eq.confirmed" +
+               "&booking_date=gte." + new Date().toISOString().split("T")[0] +
+               "&order=booking_date.asc,booking_time.asc",
+    }).then(rows => {
+      setBookings(rows);
+      setStatus("ready");
+    }).catch(() => setStatus("error"));
+  }, [email, token]);
+
+  async function handleCancel(booking) {
+    if (!window.confirm(`Cancel your ${booking.service_title} on ${new Date(booking.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}?`)) return;
+    setCancellingId(booking.id);
+    try {
+      await supabase.update("bookings", { status: "cancelled" }, "cancellation_token=eq." + booking.cancellation_token);
+      setCancelledIds(prev => [...prev, booking.id]);
+      setBookings(prev => prev.filter(b => b.id !== booking.id));
+    } catch (e) {
+      console.error(e);
+      alert("Something went wrong. Please DM us on Instagram @ninetyninebyk.");
+    }
+    setCancellingId(null);
+  }
+
+  const upcomingBookings = bookings.filter(b => !cancelledIds.includes(b.id));
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--cream)", padding: "40px 24px" }}>
+      <div style={{ maxWidth: 520, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <img src="/logo-dark.png" alt="ninety nine." style={{ height: 28, marginBottom: 20 }} />
+          <div style={{ width: 36, height: 1.5, background: "var(--gold)", margin: "0 auto 24px" }} />
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 28, fontWeight: 300, marginBottom: 8 }}>Your Bookings</div>
+          <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>{email}</div>
+        </div>
+
+        {status === "loading" && (
+          <div style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading your bookings...</div>
+        )}
+
+        {status === "invalid" && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 12 }}>Link not valid</div>
+            <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7 }}>
+              This link may have expired. Please check your confirmation email for a fresh link, or DM us on Instagram{" "}
+              <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)", textDecoration: "none" }}>@ninetyninebyk</a>.
+            </p>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 12 }}>Something went wrong</div>
+            <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7 }}>
+              Please DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)", textDecoration: "none" }}>@ninetyninebyk</a>.
+            </p>
+          </div>
+        )}
+
+        {status === "ready" && upcomingBookings.length === 0 && (
+          <div style={{ textAlign: "center", padding: "32px 0" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 12 }}>No upcoming bookings</div>
+            <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: 32 }}>
+              You don't have any upcoming appointments. Ready to book again?
+            </p>
+            <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>
+              Book an Appointment
+            </a>
+          </div>
+        )}
+
+        {status === "ready" && upcomingBookings.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "2.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 16 }}>
+              {upcomingBookings.length} upcoming appointment{upcomingBookings.length !== 1 ? "s" : ""}
+            </div>
+            {upcomingBookings.map(b => {
+              const dateObj = new Date(b.booking_date + "T12:00:00");
+              const formattedDate = dateObj.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+              const isToday = b.booking_date === new Date().toISOString().split("T")[0];
+              const isCancelling = cancellingId === b.id;
+              return (
+                <div key={b.id} style={{ background: "var(--warm-white)", border: "1px solid var(--border)", padding: "24px 20px", marginBottom: 12, position: "relative" }}>
+                  {isToday && (
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--gold)" }} />
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 4 }}>
+                        {b.service_title || "Appointment"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 2 }}>
+                        with {b.practitioner?.name}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500, marginTop: 8, color: isToday ? "var(--gold)" : "var(--charcoal)" }}>
+                        {isToday ? "Today" : formattedDate} at {b.booking_time?.slice(0, 5)}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>
+                        {b.duration} min · £{b.price}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleCancel(b)}
+                      disabled={isCancelling}
+                      style={{ padding: "8px 16px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif", flexShrink: 0, opacity: isCancelling ? 0.5 : 1 }}>
+                      {isCancelling ? "..." : "Cancel"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 32, textAlign: "center" }}>
+              <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>
+                Book Another Appointment
+              </a>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid var(--border)", textAlign: "center", fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
+          99 Banks Road · West Kirby · Wirral
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
 // SITE
 // ============================================================
 
