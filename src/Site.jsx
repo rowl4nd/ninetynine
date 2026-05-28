@@ -537,7 +537,7 @@ export function CancelPage({ token }) {
   async function handleCancel() {
     setStatus("cancelling");
     try {
-      await supabase.update("bookings", { status: "cancelled" }, "cancellation_token=eq." + token);
+      await supabase.update("bookings", { status: "cancelled", cancelled_by: "client" }, "cancellation_token=eq." + token);
       setStatus("done");
     } catch (e) { console.error(e); setStatus("error"); }
   }
@@ -632,7 +632,7 @@ export function ClientPortal({ email, token }) {
     if (!window.confirm(`Cancel your ${booking.service_title} on ${new Date(booking.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}?`)) return;
     setCancellingId(booking.id);
     try {
-      await supabase.update("bookings", { status: "cancelled" }, "cancellation_token=eq." + booking.cancellation_token);
+      await supabase.update("bookings", { status: "cancelled", cancelled_by: "client" }, "cancellation_token=eq." + booking.cancellation_token);
       setCancelledIds(prev => [...prev, booking.id]);
       setBookings(prev => prev.filter(b => b.id !== booking.id));
     } catch (e) {
