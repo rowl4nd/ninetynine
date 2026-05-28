@@ -220,6 +220,28 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     }).catch(() => setLoadingServices(false));
   }, [prac]);
 
+  // Fetch practitioner's weekly availability so we can grey out days in the calendar
+  const [availability, setAvailability] = useState([]);
+  useEffect(() => {
+    if (!prac) { setAvailability([]); return; }
+    if (IS_DEMO) {
+      // Mon–Sat available, Sun off
+      setAvailability([0,1,2,3,4,5].map(d => ({ day_of_week: d, is_available: true })));
+      return;
+    }
+    supabase.query("availability", {
+      filters: "&practitioner_id=eq." + prac.id + "&is_available=eq.false",
+    }).then(rows => setAvailability(rows)).catch(() => setAvailability([]));
+  }, [prac]);
+
+  // Set of day-of-week numbers (0=Mon…6=Sun) that are unavailable
+  // Note: our schema uses 0=Monday; JS getDay() uses 0=Sunday
+  // We convert: schema day 0=Mon → JS day 1, schema day 6=Sun → JS day 0
+  const unavailableDays = new Set(availability.map(r => {
+    // schema: 0=Mon,1=Tue,...,5=Sat,6=Sun → JS: Mon=1,Tue=2,...,Sat=6,Sun=0
+    return r.day_of_week === 6 ? 0 : r.day_of_week + 1;
+  }));
+
   const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
   const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
@@ -397,12 +419,13 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                   for (let d = 1; d <= total; d++) {
                     const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
                     const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    const sun = new Date(cY, cM, d).getDay() === 0;
+                    const jsDay = new Date(cY, cM, d).getDay();
+                    const unavail = unavailableDays.has(jsDay);
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     cells.push(
-                      <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || sun ? " off" : "") + (isNow ? " now" : "")}
-                        onClick={() => { if (!past && !sun) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
-                        disabled={past || sun}>{d}</button>
+                      <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || unavail ? " off" : "") + (isNow ? " now" : "")}
+                        onClick={() => { if (!past && !unavail) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
+                        disabled={past || unavail}>{d}</button>
                     );
                   }
                   return cells;
