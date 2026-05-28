@@ -1,0 +1,17 @@
+{
+  "name": "ninety nine.",
+  "short_name": "ninety nine.",
+  "description": "Nails & beauty salon, West Kirby",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F1",
+  "theme_color": "#2C2825",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
