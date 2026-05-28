@@ -1,127 +1,161 @@
 # ninety nine. — Salon Website & Booking System
 
-Nails & beauty salon website with built-in booking system for 99 Banks Road, West Kirby.
+Website and online booking system for **ninety nine.**, a nails & beauty salon at 99 Banks Road, West Kirby, Wirral.
+
+**Live site**: [ninetynine-wk.co.uk](https://ninetynine-wk.co.uk)
 
 ---
 
+## Tech Stack
 
-## How to get this live (step by step)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React + Vite (JavaScript) |
+| Database | Supabase (Postgres, EU West) |
+| Hosting | Vercel (auto-deploys from GitHub) |
+| Emails | Resend API via Supabase Edge Functions |
+| Cost | ~£10/year (domain only) |
 
-### Step 1: Set up Supabase (your database)
+---
 
-You've already created the project — now run the schema:
+## Project Structure
 
-1. Go to your Supabase dashboard → **SQL Editor** (left sidebar)
-2. Click **New query**
-3. Open the file `supabase-schema.sql` from this folder in a text editor
-4. Copy ALL the contents and paste into the SQL editor
-5. Click **Run**
-6. You should see "Success" — check **Table Editor** to verify tables exist
-
-Now grab your API keys:
-
-1. Go to **Settings → API** in Supabase
-2. Copy the **Project URL** (looks like `https://abc123.supabase.co`)
-3. Copy the **anon public** key (long string starting with `eyJ...`)
-4. Keep these handy — you'll need them in Step 3
-
-### Step 2: Push this code to GitHub
-
-#### Option A: Using GitHub.com (no terminal needed)
-
-1. Go to github.com and log in
-2. Click the **+** in the top right → **New repository**
-3. Name it `ninetynine` (or whatever you like)
-4. Keep it **Public** or **Private** — either works
-5. Click **Create repository**
-6. On the next page, click **"uploading an existing file"**
-7. Drag ALL the files from this folder into the upload area
-   - Make sure you include the `src` folder and `public` folder
-   - **Don't upload** `node_modules` if it exists
-8. Click **Commit changes**
-
-#### Option B: Using the terminal (if you're comfortable)
-
-```bash
-cd ninetynine-site
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/ninetynine.git
-git push -u origin main
+```
+public/
+  favicon.svg
+  logo-dark.png          ← used in nav + hero
+  logo-light.png         ← used in footer
+  team/
+    Kristen.jpg
+    Lisa.jpg
+    Inke.jpg
+    Holly.jpg
+src/
+  App.jsx                ← routing shell (/, /cancel, /my-bookings, dashboard)
+  App.css                ← all styles, mobile-first
+  Site.jsx               ← public website + booking flow + client portal
+  Dashboard.jsx          ← staff portal
+  shared.jsx             ← shared hooks, data, components
+  supabase.js            ← Supabase client (raw fetch, no SDK)
+  main.jsx               ← React entry point
 ```
 
-### Step 3: Deploy on Vercel
+---
 
-1. Go to **vercel.com** and sign in with your GitHub account
-2. Click **"Add New..."** → **Project**
-3. Find your `ninetynine` repo and click **Import**
-4. Under **Environment Variables**, add these two:
+## Environment Variables
 
-   | Name | Value |
-   |------|-------|
-   | `VITE_SUPABASE_URL` | Your Supabase Project URL |
-   | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon public key |
+Set these in Vercel (Settings → Environment Variables):
 
-5. Click **Deploy**
-6. Wait about 60 seconds — your site will be live at `ninetynine.vercel.app` (or similar)
+```
+VITE_SUPABASE_URL      = https://rousxlmxmjrkyvczbtan.supabase.co
+VITE_SUPABASE_ANON_KEY = (legacy anon key — Supabase Settings → API → Legacy tab)
+```
 
-### Step 4: Add a custom domain (optional)
-
-1. Buy a domain (e.g. `ninetyninewk.co.uk`) from Namecheap, GoDaddy, etc.
-2. In Vercel → your project → **Settings → Domains**
-3. Add your domain
-4. Vercel will show you DNS records to add at your domain registrar
-5. Add the records, wait 10-30 minutes, and your site is live on your own domain
-
-### Step 5: Set up practitioner accounts
-
-1. In Supabase → **Authentication → Users**
-2. Click **Add user → Send invite** (or Create user)
-3. Add each practitioner's email
-4. After they've signed up, go to **Table Editor → practitioners**
-5. Copy each user's UUID from the Authentication page
-6. Paste it into the matching practitioner's `user_id` column
+> **Important**: use the key from the **Legacy** tab in Supabase, not the newer publishable key format. The app uses raw fetch calls rather than the Supabase SDK and requires the legacy format.
 
 ---
 
-## Running locally (for development)
+## Running Locally
 
 ```bash
 npm install
 cp .env.example .env.local
-# Edit .env.local with your Supabase keys
+# Add your Supabase keys to .env.local
 npm run dev
+# Opens at http://localhost:5173
 ```
-
-Opens at http://localhost:5173
 
 ---
 
-## Project structure
+## Database
 
+Hosted on Supabase. Project ID: `rousxlmxmjrkyvczbtan`.
+
+### Core tables
+- `practitioners` — the five team members
+- `custom_services` — each practitioner's own services and pricing
+- `custom_service_addons` — optional add-ons linked to a service
+- `availability` — weekly working hours per practitioner (0=Mon … 6=Sun)
+- `blocked_dates` — specific dates or time ranges blocked off
+- `bookings` — all client bookings
+
+### Key booking columns
+- `service_title` — service name stored as text at booking time (never joined)
+- `booked_by` — set to `'staff'` for manual bookings; email notifications are skipped
+- `cancellation_token` — uuid used in cancel links, requires no login
+- `status` — `confirmed` / `cancelled` / `completed` / `no_show`
+
+### Practitioners table extras
+- `slot_interval` — how often slots appear (15/30/60 min)
+- `booking_window_weeks` — how far ahead clients can book (2–26 weeks)
+- `calendar_token` — used for iCal feed URL
+
+> The full list of migrations that have been applied to the database is documented in `PROJECT-SUMMARY.md`.
+
+---
+
+## Supabase Edge Functions
+
+### `booking-notification`
+Triggered by a database webhook on every `bookings` INSERT. Sends:
+- Confirmation email to the client (includes cancel link + "View my bookings" link)
+- New booking notification to the practitioner
+
+Skips all emails if `booked_by = 'staff'`.
+
+### `booking-reminder`
+Runs daily at 8am UTC via pg_cron. Finds all confirmed bookings for the next day and sends a reminder email to each client.
+
+### `practitioner-calendar`
+Returns an RFC 5545-compliant `.ics` feed for a practitioner's bookings. Used for subscribing in Google Calendar or Apple Calendar. Accessed via `?token=<calendar_token>`.
+
+---
+
+## URL Routes
+
+| Path | Description |
+|------|-------------|
+| `/` | Public website |
+| `/cancel?token=xxx` | Client cancels a booking (no login needed) |
+| `/my-bookings?email=xxx&t=yyy` | Client views all their upcoming bookings |
+| Staff dashboard | Accessed via "Staff Login" link in the nav — React state change, not a separate URL |
+
+---
+
+## Staff Dashboard
+
+Each practitioner logs in with their Supabase auth account. Features:
+
+- **Bookings** — month calendar, click a day to see bookings in time order, click a booking to view details, reschedule or cancel
+- **My Services** — add/edit/remove their own services with custom pricing, grouping, and optional add-ons
+- **My Schedule** — set working days and hours, booking window, block specific dates, slot interval, iCal feed link
+
+---
+
+## How Emails Work
+
+The client portal link in every email uses a token derived from the client's email address:
+
+```js
+btoa(email.toLowerCase().trim()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)
 ```
-ninetynine-site/
-├── index.html              ← HTML entry point
-├── package.json            ← Dependencies
-├── vite.config.js          ← Build config
-├── vercel.json             ← Vercel deployment config
-├── .env.example            ← Template for environment variables
-├── .gitignore              ← Files to exclude from git
-├── supabase-schema.sql     ← Database schema (run in Supabase SQL Editor)
-├── public/
-│   └── favicon.svg         ← Browser tab icon
-└── src/
-    ├── main.jsx            ← React entry point
-    └── App.jsx             ← The entire website + booking system + dashboard
-```
 
-## Costs
+The same algorithm runs in both the Edge Functions (to generate the link) and the `ClientPortal` component in `Site.jsx` (to verify it). No server round-trip needed.
 
-| Component | Cost |
-|-----------|------|
-| Supabase | Free (up to 50k monthly users) |
-| Vercel | Free (personal projects) |
-| Domain | ~£10/year |
-| **Total** | **~£10/year** |
+---
+
+## Deploying Changes
+
+1. Edit files on GitHub (web editor or `git push`)
+2. Vercel auto-deploys on every commit to `main`
+3. Build takes ~60 seconds
+
+For Edge Function changes, update the function code directly in the Supabase dashboard (Edge Functions → select function → Code tab).
+
+---
+
+## Still To Do
+
+- [ ] Get Melissa's photo — add as `public/team/Melissa.jpg`
+- [ ] Verify actual service prices with each practitioner
+- [ ] Confirm all practitioner Supabase auth accounts are set up with `user_id` linked in the practitioners table
