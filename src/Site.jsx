@@ -973,7 +973,7 @@ export default function Site({ onDash }) {
           <div className="nn-section-label">Find Us</div>
           <h2 className="nn-section-title">Visit the Salon</h2>
           <div className="nn-contact-grid">
-            <div className="nn-contact-block"><h4>Location</h4><p>ninety nine.<br />99 Banks Road<br />West Kirby, Wirral<br />CH48</p></div>
+            <div className="nn-contact-block"><h4>Location</h4><p>ninety nine.<br />99 Banks Road<br />West Kirby, Wirral<br />CH48 4DN</p></div>
             <div className="nn-contact-block"><h4>Opening Hours</h4><p>Varies depending on practitioner</p></div>
             <div className="nn-contact-block"><h4>Get in Touch</h4><p>Instagram: <a href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold)", textDecoration: "none" }}>@ninetyninebyk</a><br />Book online</p></div>
           </div>
