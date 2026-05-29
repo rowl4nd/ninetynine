@@ -252,7 +252,10 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
-  function handleSelectService(s) { setSvc(s); setAddon(null); }
+  function handleSelectService(s) {
+    setSvc(s); setAddon(null);
+    if (s.addon) { setStep(3); } else { setStep(dateStep); }
+  }
 
   async function handleConfirm() {
     if (!canConfirm) return;
@@ -332,7 +335,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
           <H3>Who would you like to see?</H3>
           <div className="nn-prac-grid">
             {practitioners.map(p => (
-              <div key={p.id} className={"nn-prac-card" + (prac?.id === p.id ? " picked" : "")} onClick={() => setPrac(p)}>
+              <div key={p.id} className={"nn-prac-card" + (prac?.id === p.id ? " picked" : "")} onClick={() => { setPrac(p); setStep(2); }}>
                 {p.photo
                   ? <div className="nn-team-avatar" style={{ backgroundImage: "url(" + p.photo + ")", width: 44, height: 44, margin: "0 auto 10px" }} />
                   : <div className="nn-team-avatar" style={{ background: p.color, width: 44, height: 44, fontSize: 16, margin: "0 auto 10px" }}>{p.name[0]}</div>
@@ -342,9 +345,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
               </div>
             ))}
           </div>
-          <div className="nn-booking-nav">
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(2)} disabled={!prac} style={{ opacity: prac ? 1 : .35 }}>Continue</button>
-          </div>
+
         </div>
       )}
 
@@ -373,7 +374,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
           )}
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => { if (svc?.addon) setStep(3); else setStep(dateStep); }} disabled={!svc} style={{ opacity: svc ? 1 : .35 }}>Continue</button>
           </div>
         </div>
       )}
@@ -384,17 +384,16 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
           <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24, lineHeight: 1.7 }}>
             Optional extra for your {svc.title} appointment.
           </p>
-          <div className={"nn-svc-item" + (addon === null ? " picked" : "")} onClick={() => setAddon(null)} style={{ marginBottom: 8 }}>
+          <div className={"nn-svc-item" + (addon === null ? " picked" : "")} onClick={() => { setAddon(null); setStep(dateStep); }} style={{ marginBottom: 8 }}>
             <div><div style={{ fontWeight: 500 }}>No add-on</div><div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Just the {svc.title}</div></div>
             <div style={{ fontSize: 13, color: "var(--warm-gray)" }}>—</div>
           </div>
-          <div className={"nn-svc-item" + (addon?.id === svc.addon.id ? " picked" : "")} onClick={() => setAddon(svc.addon)}>
+          <div className={"nn-svc-item" + (addon?.id === svc.addon.id ? " picked" : "")} onClick={() => { setAddon(svc.addon); setStep(dateStep); }}>
             <div><div style={{ fontWeight: 500 }}>{svc.addon.title}</div><div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{svc.addon.duration} min extra</div></div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--gold)" }}>+£{svc.addon.price}</div>
           </div>
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(dateStep)}>Continue</button>
           </div>
         </div>
       )}
@@ -419,16 +418,13 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                   for (let d = 1; d <= total; d++) {
                     const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
                     const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-const jsDay = new Date(cY, cM, d).getDay();
-const unavail = unavailableDays.has(jsDay);
-const windowWeeks = prac?.booking_window_weeks || 8;
-const maxDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + windowWeeks * 7);
-const tooFar = new Date(cY, cM, d) > maxDate;
+                    const jsDay = new Date(cY, cM, d).getDay();
+                    const unavail = unavailableDays.has(jsDay);
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     cells.push(
-                      <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || unavail || tooFar ? " off" : "") + (isNow ? " now" : "")}
+                      <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || unavail ? " off" : "") + (isNow ? " now" : "")}
                         onClick={() => { if (!past && !unavail) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
-                        disabled={past || unavail || tooFar}>{d}</button>
+                        disabled={past || unavail}>{d}</button>
                     );
                   }
                   return cells;
