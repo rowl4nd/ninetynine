@@ -520,7 +520,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
       {loading ? (
         <div style={{ color: "var(--warm-gray)", padding: 40, textAlign: "center" }}>Loading bookings...</div>
       ) : (
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", border: "1px solid var(--border)", borderRadius: 2 }}>
+        style={{ overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch", touchAction: "pan-x", border: "1px solid var(--border)", borderRadius: 2 }}
           <div style={{ minWidth: 560, userSelect: "none" }}>
             {/* Day header row */}
             <div style={{ display: "grid", gridTemplateColumns: "48px repeat(7, 1fr)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10 }}>
@@ -551,7 +551,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                 const dayBookings = bookingsByDate[ds] || [];
                 const isToday = d.getTime() === today.getTime();
                 return (
-                  <div key={di} style={{ position: "relative", height: TOTAL_SLOTS * SLOT_H, borderLeft: "1px solid var(--border)", background: isToday ? "rgba(201,169,110,.04)" : "transparent" }}>
+                  <div key={di} style={{ position: "relative", height: TOTAL_SLOTS * SLOT_H, borderLeft: "1px solid var(--border)", background: isToday ? "rgba(201,169,110,.04)" : "transparent", touchAction: "pan-y" }}
                     {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => (
                       <div key={i} style={{ position: "absolute", top: i * 2 * SLOT_H, left: 0, right: 0, borderTop: "1px solid var(--border)", pointerEvents: "none" }} />
                     ))}
