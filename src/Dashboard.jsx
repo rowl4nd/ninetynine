@@ -76,13 +76,13 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
           {!showNewGroup ? (
             <div style={{ display: "flex", gap: 8 }}>
               <select value={groupName} onChange={e => setGroupName(e.target.value)}
-                style={{ flex: 1, padding: "14px 18px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
+                style={{ flex: 1, minWidth: 0, padding: "10px 12px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
                 <option value="">No group</option>
                 {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
               <button onClick={() => { setShowNewGroup(true); setGroupName(""); }}
-                style={{ padding: "14px 20px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--charcoal)", whiteSpace: "nowrap" }}>
-                + New Group
+                style={{ padding: "10px 12px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase", color: "var(--charcoal)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                + New
               </button>
             </div>
           ) : (
@@ -1033,8 +1033,15 @@ export default function Dashboard({ onBack }) {
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
+          {/* Add service button at the top */}
+          {!showServiceForm && !editingCustomService && (
+            <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
+              <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
+            </button>
+          )}
+
           {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
-            <div style={{ padding: "32px 0", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>No services yet — add your first service below.</div>
+            <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, paddingBottom: 16 }}>No services yet — tap above to add your first.</div>
           ) : (
             <div style={{ marginBottom: 24 }}>
               {dashGroups.map(group => (
@@ -1071,15 +1078,9 @@ export default function Dashboard({ onBack }) {
               )}
             </div>
           )}
-          {showServiceForm ? (
+          {showServiceForm && (
             <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
               onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
-          ) : (
-            !editingCustomService && (
-              <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 24px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%" }}>
-                <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
-              </button>
-            )
           )}
         </div>
       )}
