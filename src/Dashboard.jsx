@@ -409,12 +409,27 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   function scrollToNow() {
     if (!scrollContainerRef.current) return;
     const now = new Date();
+
+    // Vertical: scroll so current time is centred
     const mins = now.getHours() * 60 + now.getMinutes();
     const startMins = HOUR_START * 60;
     const top = ((mins - startMins) / 30) * SLOT_H;
-    // Centre the current time in the viewport
     const containerHeight = scrollContainerRef.current.clientHeight;
     scrollContainerRef.current.scrollTop = Math.max(0, top - containerHeight / 2);
+
+    // Horizontal: scroll so today's column is visible
+    // Grid is 48px time col + 7 equal columns
+    // Today's day index (0=Mon ... 6=Sun)
+    const jsDay = now.getDay(); // 0=Sun
+    const dayIdx = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
+    const containerWidth = scrollContainerRef.current.clientWidth;
+    const totalWidth = Math.max(scrollContainerRef.current.scrollWidth, 560);
+    const timeColWidth = 48;
+    const dayColWidth = (totalWidth - timeColWidth) / 7;
+    // Position of today's column left edge
+    const todayLeft = timeColWidth + dayIdx * dayColWidth;
+    // Scroll so today is centred, or as close as possible
+    scrollContainerRef.current.scrollLeft = Math.max(0, todayLeft - containerWidth / 2 + dayColWidth / 2);
   }
 
   const now = new Date();
@@ -442,7 +457,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
     calcNow();
     const t = setInterval(calcNow, 60000);
     // Scroll to current time on mount
-    setTimeout(scrollToNow, 50);
+    setTimeout(scrollToNow, 150);
     return () => clearInterval(t);
   }, []);
 
@@ -518,7 +533,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
             />
           </span>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, 7))}>›</button>
-          <button onClick={() => { setWeekStart(getWeekStart(new Date())); setTimeout(scrollToNow, 50); }}
+          <button onClick={() => { setWeekStart(getWeekStart(new Date())); setTimeout(scrollToNow, 150); }}
             style={{ padding: "5px 10px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
             Today
           </button>
