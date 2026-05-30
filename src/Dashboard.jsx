@@ -1143,24 +1143,24 @@ export default function Dashboard({ onBack }) {
               <button onClick={() => setBlockType("full")} style={{ padding: "10px 20px", background: blockType === "full" ? "var(--charcoal)" : "none", color: blockType === "full" ? "var(--cream)" : "var(--charcoal)", border: blockType === "full" ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", transition: "all .2s" }}>Full Day</button>
               <button onClick={() => setBlockType("partial")} style={{ padding: "10px 20px", background: blockType === "partial" ? "var(--charcoal)" : "none", color: blockType === "partial" ? "var(--cream)" : "var(--charcoal)", border: blockType === "partial" ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", transition: "all .2s" }}>Time Range</button>
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div style={{ flex: "1 1 160px" }}>
-                <label style={{ fontSize: 11, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Date</label>
-                <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ width: "100%", padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none" }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+                <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Date</label>
+                <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
               </div>
               {blockType === "partial" && (
                 <>
-                  <div style={{ flex: "0 1 130px" }}>
-                    <label style={{ fontSize: 11, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>From</label>
-                    <input type="time" value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)} style={{ width: "100%", padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none" }} />
+                  <div style={{ flex: "1 1 90px", minWidth: 0 }}>
+                    <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>From</label>
+                    <input type="time" value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
                   </div>
-                  <div style={{ flex: "0 1 130px" }}>
-                    <label style={{ fontSize: 11, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Until</label>
-                    <input type="time" value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)} style={{ width: "100%", padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none" }} />
+                  <div style={{ flex: "1 1 90px", minWidth: 0 }}>
+                    <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Until</label>
+                    <input type="time" value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
                   </div>
                 </>
               )}
-              <button onClick={addBlockedDate} disabled={!newBlock || blockSaving || (blockType === "partial" && (!newBlockStart || !newBlockEnd))} style={{ padding: "12px 28px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase", opacity: newBlock && !blockSaving && (blockType === "full" || (newBlockStart && newBlockEnd)) ? 1 : .35, alignSelf: "flex-end" }}>Block</button>
+              <button onClick={addBlockedDate} disabled={!newBlock || blockSaving || (blockType === "partial" && (!newBlockStart || !newBlockEnd))} style={{ padding: "8px 18px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: newBlock && !blockSaving && (blockType === "full" || (newBlockStart && newBlockEnd)) ? 1 : .35, alignSelf: "flex-end", flexShrink: 0 }}>Block</button>
             </div>
           </div>
           {blockedDates.length === 0 ? (
