@@ -965,7 +965,7 @@ export default function Dashboard({ onBack }) {
           <div className="nn-dash-greeting">Hello, {prac?.name}</div>
           <div style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginTop: 4 }}>{prac?.specialty}</div>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
+        <div className="nn-dash-header-btns">
           <button className="nn-btn-back" onClick={() => { setAuth(null); setPrac(null); localStorage.removeItem("nn_session"); }}>Sign Out</button>
           <button className="nn-btn-back" onClick={onBack}>Website</button>
         </div>
