@@ -1033,11 +1033,15 @@ export default function Dashboard({ onBack }) {
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
-          {/* Add service button at the top */}
+          {/* Add service button + inline form at the top */}
           {!showServiceForm && !editingCustomService && (
             <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
               <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
             </button>
+          )}
+          {showServiceForm && (
+            <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
+              onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
           )}
 
           {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
@@ -1078,10 +1082,7 @@ export default function Dashboard({ onBack }) {
               )}
             </div>
           )}
-          {showServiceForm && (
-            <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
-              onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
-          )}
+
         </div>
       )}
 
