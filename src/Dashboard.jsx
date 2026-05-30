@@ -489,11 +489,11 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   return (
     <div>
       {/* Top bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, -7))}>‹</button>
           <span
-            style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, minWidth: 160, textAlign: "center", cursor: "pointer", position: "relative", textDecoration: "underline dotted", textDecorationColor: "var(--border)" }}
+            style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 400, minWidth: 120, textAlign: "center", cursor: "pointer", position: "relative", textDecoration: "underline dotted", textDecorationColor: "var(--border)" }}
             onClick={() => datePickerRef.current?.showPicker?.() || datePickerRef.current?.click()}
             title="Jump to date"
           >
@@ -507,12 +507,12 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
           </span>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, 7))}>›</button>
           <button onClick={() => setWeekStart(getWeekStart(new Date()))}
-            style={{ marginLeft: 8, padding: "6px 14px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
+            style={{ padding: "5px 10px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
             Today
           </button>
         </div>
-        <button onClick={onAddBooking} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", flexShrink: 0 }}>
-          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Booking
+        <button onClick={onAddBooking} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", flexShrink: 0 }}>
+          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span> Add
         </button>
       </div>
 
@@ -528,9 +528,9 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
               {days.map((d, i) => {
                 const isToday = d.getTime() === today.getTime();
                 return (
-                  <div key={i} style={{ background: isToday ? "var(--gold)" : "var(--charcoal)", color: isToday ? "var(--charcoal)" : "var(--cream)", textAlign: "center", padding: "10px 4px", borderLeft: "1px solid rgba(255,255,255,.08)" }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "1.5px" }}>{DAY_NAMES_SHORT[i]}</div>
-                    <div style={{ fontSize: 14, fontWeight: isToday ? 700 : 400, marginTop: 3 }}>{d.getDate()}</div>
+                  <div key={i} style={{ background: isToday ? "var(--gold)" : "var(--charcoal)", color: isToday ? "var(--charcoal)" : "var(--cream)", textAlign: "center", padding: "6px 4px", borderLeft: "1px solid rgba(255,255,255,.08)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: "1px" }}>{DAY_NAMES_SHORT[i]}</div>
+                    <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, marginTop: 2 }}>{d.getDate()}</div>
                   </div>
                 );
               })}
