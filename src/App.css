@@ -669,17 +669,17 @@ body {
 /* ═══════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════ */
-.nn-dash { min-height: 100vh; background: var(--cream); padding: 20px; }
+.nn-dash { min-height: 100vh; background: var(--cream); padding: 14px; }
 .nn-dash-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 28px;
-  padding-bottom: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
   gap: 12px;
 }
-.nn-dash-greeting { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300; }
+.nn-dash-greeting { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 300; }
 .nn-dash-header-btns { display: flex; gap: 8px; flex-shrink: 0; }
 .nn-dash-header-btns .nn-btn-back {
   padding: 8px 14px;
@@ -687,7 +687,7 @@ body {
   letter-spacing: 1px;
   white-space: nowrap;
 }
-.nn-dash-tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+.nn-dash-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
 .nn-dash-tab {
   padding: 10px 12px;
   font-size: 10px;
@@ -880,5 +880,7 @@ body {
 
   /* Dashboard */
   .nn-dash { padding: 32px; }
+  .nn-dash-greeting { font-size: 32px; }
+  .nn-dash-header-btns .nn-btn-back { padding: 14px 28px; font-size: 11px; letter-spacing: 2px; }
   /* week view has no additional desktop overrides needed */
 }
