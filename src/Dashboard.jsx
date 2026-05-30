@@ -404,6 +404,18 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   const [nowTop, setNowTop] = useState(null);
   const [nowDayIdx, setNowDayIdx] = useState(null);
   const datePickerRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  function scrollToNow() {
+    if (!scrollContainerRef.current) return;
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const startMins = HOUR_START * 60;
+    const top = ((mins - startMins) / 30) * SLOT_H;
+    // Centre the current time in the viewport
+    const containerHeight = scrollContainerRef.current.clientHeight;
+    scrollContainerRef.current.scrollTop = Math.max(0, top - containerHeight / 2);
+  }
 
   const now = new Date();
   const [editCM, setEditCM] = useState(now.getMonth());
@@ -429,6 +441,8 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
     }
     calcNow();
     const t = setInterval(calcNow, 60000);
+    // Scroll to current time on mount
+    setTimeout(scrollToNow, 50);
     return () => clearInterval(t);
   }, []);
 
@@ -492,21 +506,19 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, -7))}>‹</button>
-          <span
-            style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 400, minWidth: 120, textAlign: "center", cursor: "pointer", position: "relative", textDecoration: "underline dotted", textDecorationColor: "var(--border)" }}
-            onClick={() => datePickerRef.current?.showPicker?.() || datePickerRef.current?.click()}
-            title="Jump to date"
-          >
-            {weekLabel}
+          <span style={{ position: "relative", display: "inline-block" }}>
+            <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 400, display: "block", minWidth: 120, textAlign: "center", textDecoration: "underline dotted", textDecorationColor: "var(--border)", pointerEvents: "none" }}>
+              {weekLabel}
+            </span>
             <input
               ref={datePickerRef}
               type="date"
-              style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0, top: 0, left: "50%" }}
+              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
               onChange={e => { if (e.target.value) setWeekStart(getWeekStart(new Date(e.target.value + "T12:00:00"))); }}
             />
           </span>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, 7))}>›</button>
-          <button onClick={() => setWeekStart(getWeekStart(new Date()))}
+          <button onClick={() => { setWeekStart(getWeekStart(new Date())); setTimeout(scrollToNow, 50); }}
             style={{ padding: "5px 10px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
             Today
           </button>
@@ -520,7 +532,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
         <div style={{ color: "var(--warm-gray)", padding: 40, textAlign: "center" }}>Loading bookings...</div>
       ) : (
         // ── scroll wrapper: pan-x for horizontal swipe, lets vertical pass through ──
-        <div style={{ height: "70vh", overflowY: "auto", overflowX: "auto", WebkitOverflowScrolling: "touch", border: "1px solid var(--border)", borderRadius: 2 }}>
+        <div ref={scrollContainerRef} style={{ height: "70vh", overflowY: "auto", overflowX: "auto", WebkitOverflowScrolling: "touch", border: "1px solid var(--border)", borderRadius: 2 }}>
           <div style={{ minWidth: 560, userSelect: "none" }}>
             {/* Day header row */}
             <div style={{ display: "grid", gridTemplateColumns: "48px repeat(7, 1fr)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10 }}>
