@@ -453,8 +453,8 @@ useEffect(() => {
                     const ds = dateStr(cY, cM, d);
 const count = slotCounts[ds];
 const dotColor = past || new Date(cY, cM, d).getDay() === 0 ? null : count === undefined ? null : count === 0 ? "var(--red)" : count <= 3 ? "#C9963E" : "var(--green)";cells.push(
-  <button key={d} className={"nn-cal-day"+(sel?" on":"")+(past||sun?" off":"")+(isNow?" now":"")}
-    onClick={() => { if(!past&&!sun){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||sun}>
+  <button key={d} className={"nn-cal-day"+(sel?" on":"")+(past||new Date(cY,cM,d).getDay()===0?" off":"")+(isNow?" now":"")}
+  onClick={() => { if(!past&&new Date(cY,cM,d).getDay()!==0){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||new Date(cY,cM,d).getDay()===0}>
     {d}
     {dotColor && <span style={{ display:"block", width:5, height:5, borderRadius:"50%", background:dotColor, margin:"2px auto 0" }}/>}
   </button>
