@@ -605,13 +605,14 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                   ["Service", sheet.service_title || sheet.service_name || "Service"],
                   ["Duration", sheet.duration + " min"],
                   ["Price", "£" + sheet.price],
+                  sheet.deposit_paid ? ["Deposit", "£" + sheet.deposit_amount + " paid ✓"] : null,
                   ["Phone", sheet.client_phone],
                   sheet.client_email ? ["Email", sheet.client_email] : null,
                   sheet.notes ? ["Notes", sheet.notes] : null,
                 ].filter(Boolean).map(([label, val]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
-                    <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>{label}</span>
-                    <span style={{ fontWeight: 500, textAlign: "right", maxWidth: "60%" }}>{val}</span>
+                    <span style={{ color: label === "Deposit" ? "var(--green)" : "var(--warm-gray)", fontWeight: 300 }}>{label}</span>
+                    <span style={{ fontWeight: 500, textAlign: "right", maxWidth: "60%", color: label === "Deposit" ? "var(--green)" : "inherit" }}>{val}</span>
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
@@ -709,9 +710,21 @@ export default function Dashboard({ onBack }) {
   const [blockSaving, setBlockSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
+  const [stripeConnecting, setStripeConnecting] = useState(false);
+  const [depositSaving, setDepositSaving] = useState(false);
+  const [depositAmountInput, setDepositAmountInput] = useState("");
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // ── Session restore — always fetch fresh prac from DB, never trust cached prac ──
+  // Handle Stripe Connect return
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeStatus = params.get("stripe");
+    if (stripeStatus === "success") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Session restore
   useEffect(() => {
     async function restoreSession() {
       try {
@@ -727,10 +740,11 @@ export default function Dashboard({ onBack }) {
         const newSession = await res.json();
         localStorage.setItem("nn_session", JSON.stringify({ session: newSession }));
         setAuth(newSession);
-        // Always fetch fresh prac from DB — never use stale cached prac data
         const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + newSession.user.id, token: newSession.access_token });
-        if (pracs.length > 0) setPrac(pracs[0]);
-        else localStorage.removeItem("nn_session");
+        if (pracs.length > 0) {
+          setPrac(pracs[0]);
+          setDepositAmountInput(String(pracs[0].deposit_amount || 10));
+        } else localStorage.removeItem("nn_session");
       } catch (e) { localStorage.removeItem("nn_session"); }
     }
     restoreSession();
@@ -745,10 +759,49 @@ export default function Dashboard({ onBack }) {
       const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + session.user.id, token: session.access_token });
       if (pracs.length > 0) {
         setPrac(pracs[0]);
-        // Only store the session token — prac is always fetched fresh from DB
+        setDepositAmountInput(String(pracs[0].deposit_amount || 10));
         localStorage.setItem("nn_session", JSON.stringify({ session }));
       } else setLoginErr("No practitioner account linked to this email. Please contact Kristen.");
     } catch (e) { setLoginErr(e.message); }
+  }
+
+  async function handleStripeConnect() {
+    if (IS_DEMO) { alert("Stripe Connect is not available in demo mode."); return; }
+    setStripeConnecting(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-connect-onboard`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.access_token}` },
+          body: JSON.stringify({ practitioner_id: prac.id }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      // Save account_id to prac state immediately if returned
+      if (data.account_id) setPrac(prev => ({ ...prev, stripe_account_id: data.account_id }));
+      // Redirect to Stripe onboarding
+      window.location.href = data.url;
+    } catch (e) {
+      console.error(e);
+      alert("Error connecting Stripe: " + e.message);
+    }
+    setStripeConnecting(false);
+  }
+
+  async function saveDepositSettings(enabled, amount) {
+    if (IS_DEMO) return;
+    setDepositSaving(true);
+    try {
+      const amt = parseInt(amount) || 10;
+      await supabase.update("practitioners",
+        { deposits_enabled: enabled, deposit_amount: amt },
+        "id=eq." + prac.id, auth.access_token
+      );
+      setPrac(prev => ({ ...prev, deposits_enabled: enabled, deposit_amount: amt }));
+    } catch (e) { console.error(e); alert("Error saving deposit settings."); }
+    setDepositSaving(false);
   }
 
   useEffect(() => {
@@ -942,6 +995,7 @@ export default function Dashboard({ onBack }) {
   const confirmedBookings = bookings.filter(b => b.status === "confirmed");
   const dashGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const dashUngrouped = customServices.filter(s => !s.group_name);
+  const stripeConnected = !!prac?.stripe_account_id;
 
   return (
     <div className="nn-dash">
@@ -1036,6 +1090,94 @@ export default function Dashboard({ onBack }) {
         <div style={{ maxWidth: 680 }}>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
 
+          {/* ── Stripe Connect ── */}
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Payments
+          </div>
+          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
+            Connect your Stripe account to accept booking deposits. Deposits go directly to your account.
+          </p>
+          <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 12 }}>
+            {stripeConnected ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>Stripe connected</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Account ID: {prac.stripe_account_id}</div>
+                </div>
+                <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                  style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: stripeConnecting ? .5 : 1 }}>
+                  {stripeConnecting ? "Loading..." : "Manage Account"}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No Stripe account connected</div>
+                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Connect to start taking deposits from clients</div>
+                </div>
+                <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                  style={{ padding: "12px 24px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1, flexShrink: 0 }}>
+                  {stripeConnecting ? "Loading..." : "Connect Stripe"}
+                </button>
+              </div>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 40 }}>
+            You'll be taken to Stripe to set up your account. This takes about 5 minutes. Once connected, you can enable deposits below.
+          </p>
+
+          {/* ── Deposits ── */}
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Deposits
+          </div>
+          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
+            Require clients to pay a deposit when booking. Full refund if cancelled more than 48 hours before the appointment.
+          </p>
+          <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8, opacity: stripeConnected ? 1 : .45 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prac?.deposits_enabled ? 20 : 0 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Require deposit</div>
+                <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
+                  {stripeConnected ? "Clients pay this when booking" : "Connect Stripe above to enable deposits"}
+                </div>
+              </div>
+              <button
+                disabled={!stripeConnected || depositSaving}
+                onClick={() => saveDepositSettings(!prac?.deposits_enabled, depositAmountInput)}
+                style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: stripeConnected ? "pointer" : "not-allowed", background: prac?.deposits_enabled ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                <span style={{ position: "absolute", top: 3, left: prac?.deposits_enabled ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+              </button>
+            </div>
+            {prac?.deposits_enabled && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)" }}>Deposit amount</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
+                  <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>£</span>
+                  <input
+                    type="number" min="1" max="100"
+                    value={depositAmountInput}
+                    onChange={e => setDepositAmountInput(e.target.value)}
+                    onBlur={() => saveDepositSettings(true, depositAmountInput)}
+                    style={{ width: 56, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
+                  />
+                </div>
+                <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>charged at booking</span>
+                {depositSaving && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Saving...</span>}
+              </div>
+            )}
+          </div>
+          {!stripeConnected && (
+            <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 40 }}>Connect Stripe above to enable deposits.</p>
+          )}
+          {stripeConnected && (
+            <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 40 }}>
+              Deposits are refunded automatically if a client cancels more than 48 hours before their appointment.
+            </p>
+          )}
+
           {/* ── Weekly Hours ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Weekly Hours
@@ -1080,10 +1222,10 @@ export default function Dashboard({ onBack }) {
                   </select>
                   {row.break_start && row.break_duration && (
                     <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 300, marginLeft: 4 }}>
-                      {row.break_start.slice(0,5)} – {(() => {
+                      {row.break_start.slice(0, 5)} – {(() => {
                         const [h, m] = row.break_start.split(":").map(Number);
                         const end = new Date(0, 0, 0, h, m + parseInt(row.break_duration));
-                        return String(end.getHours()).padStart(2,"0") + ":" + String(end.getMinutes()).padStart(2,"0");
+                        return String(end.getHours()).padStart(2, "0") + ":" + String(end.getMinutes()).padStart(2, "0");
                       })()}
                     </span>
                   )}
