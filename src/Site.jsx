@@ -435,7 +435,8 @@ useEffect(() => {
               <div className="nn-cal-head">
                 <button className="nn-cal-btn" onClick={() => { if (cM === 0) { setCM(11); setCY(cY - 1); } else setCM(cM - 1); }}>‹</button>
                 <h3>{getMonthName(cM)} {cY}</h3>
-                <button className="nn-cal-btn" onClick={() => { if (cM === 11) { setCM(0); setCY(cY + 1); } else setCM(cM + 1); }}>›</button>
+                <button className="nn-cal-btn" onClick={() => { if(cM===11){setCM(0);setCY(cY+1)}else setCM(cM+1) }}
+  disabled={(() => { const max = new Date(); max.setDate(1); max.setMonth(max.getMonth() + (prac?.booking_window_weeks ? Math.floor(prac.booking_window_weeks * 7 / 30) : 8)); return new Date(cY, cM, 1) >= max; })()}>›</button>
               </div>
               <div className="nn-cal-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}</div>
               <div className="nn-cal-days">
