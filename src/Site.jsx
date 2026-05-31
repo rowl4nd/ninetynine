@@ -452,8 +452,7 @@ useEffect(() => {
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     const ds = dateStr(cY, cM, d);
 const count = slotCounts[ds];
-const dotColor = past || sun ? null : count === undefined ? null : count === 0 ? "var(--red)" : count <= 3 ? "#C9963E" : "var(--green)";
-cells.push(
+const dotColor = past || new Date(cY, cM, d).getDay() === 0 ? null : count === undefined ? null : count === 0 ? "var(--red)" : count <= 3 ? "#C9963E" : "var(--green)";cells.push(
   <button key={d} className={"nn-cal-day"+(sel?" on":"")+(past||sun?" off":"")+(isNow?" now":"")}
     onClick={() => { if(!past&&!sun){ setDate({day:d,month:cM,year:cY}); setTime(null); }}} disabled={past||sun}>
     {d}
