@@ -864,8 +864,8 @@ export default function Dashboard({ onBack }) {
     }).catch(console.error);
   }, [auth, prac, tab]);
 
-  async function saveAvailability(day) {
-    const row = availability[day];
+  async function saveAvailability(day, overrides = {}) {
+    const row = { ...availability[day], ...overrides };
     if (IS_DEMO) return;
     try {
       const payload = {
@@ -1039,7 +1039,7 @@ export default function Dashboard({ onBack }) {
             <div key={i} style={{ marginBottom: 6 }}>
               {/* Main row */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: row.is_available ? "var(--warm-white)" : "transparent", border: "1.5px solid var(--border)", opacity: row.is_available ? 1 : .5, transition: "all .2s" }}>
-                <button onClick={() => { updateAvail(i, "is_available", !row.is_available); setTimeout(() => saveAvailability(i), 100); }}
+                <button onClick={() => { const newVal = !row.is_available; updateAvail(i, "is_available", newVal); saveAvailability(i, { is_available: newVal }); }}
                   style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: row.is_available ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
                   <span style={{ position: "absolute", top: 3, left: row.is_available ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
                 </button>
