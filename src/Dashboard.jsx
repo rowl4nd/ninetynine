@@ -711,22 +711,26 @@ export default function Dashboard({ onBack }) {
   const [staffBookServices, setStaffBookServices] = useState([]);
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+  // ── Session restore — always fetch fresh prac from DB, never trust cached prac ──
   useEffect(() => {
     async function restoreSession() {
       try {
         const saved = localStorage.getItem("nn_session");
         if (!saved) return;
-        const { session, prac: savedPrac } = JSON.parse(saved);
-        if (!session?.refresh_token || !savedPrac) { localStorage.removeItem("nn_session"); return; }
+        const { session } = JSON.parse(saved);
+        if (!session?.refresh_token) { localStorage.removeItem("nn_session"); return; }
         const res = await fetch(
           import.meta.env.VITE_SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token",
           { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }, body: JSON.stringify({ refresh_token: session.refresh_token }) }
         );
         if (!res.ok) { localStorage.removeItem("nn_session"); return; }
         const newSession = await res.json();
-        localStorage.setItem("nn_session", JSON.stringify({ session: newSession, prac: savedPrac }));
+        localStorage.setItem("nn_session", JSON.stringify({ session: newSession }));
         setAuth(newSession);
-        setPrac(savedPrac);
+        // Always fetch fresh prac from DB — never use stale cached prac data
+        const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + newSession.user.id, token: newSession.access_token });
+        if (pracs.length > 0) setPrac(pracs[0]);
+        else localStorage.removeItem("nn_session");
       } catch (e) { localStorage.removeItem("nn_session"); }
     }
     restoreSession();
@@ -741,7 +745,8 @@ export default function Dashboard({ onBack }) {
       const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + session.user.id, token: session.access_token });
       if (pracs.length > 0) {
         setPrac(pracs[0]);
-        localStorage.setItem("nn_session", JSON.stringify({ session, prac: pracs[0] }));
+        // Only store the session token — prac is always fetched fresh from DB
+        localStorage.setItem("nn_session", JSON.stringify({ session }));
       } else setLoginErr("No practitioner account linked to this email. Please contact Kristen.");
     } catch (e) { setLoginErr(e.message); }
   }
@@ -876,10 +881,10 @@ export default function Dashboard({ onBack }) {
         break_duration: row.break_duration ? parseInt(row.break_duration) : null,
       };
       await fetch(SUPABASE_URL + "/rest/v1/availability?practitioner_id=eq." + prac.id + "&day_of_week=eq." + day, {
-  method: "PATCH",
-  headers: { ...supabase.headers(auth.access_token), Prefer: "return=representation" },
-  body: JSON.stringify(payload),
-});
+        method: "PATCH",
+        headers: { ...supabase.headers(auth.access_token), Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
     } catch (e) { console.error(e); }
   }
 
@@ -946,7 +951,7 @@ export default function Dashboard({ onBack }) {
           <div style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginTop: 4 }}>{prac?.specialty}</div>
         </div>
         <div className="nn-dash-header-btns">
-          <button className="nn-btn-back" onClick={() => { setAuth(null); setPrac(null); localStorage.removeItem("nn_session"); }}>Sign Out</button>
+          <button className="nn-btn-back" onClick={() => { setAuth(null); setPrac(null); setAvailability([]); localStorage.removeItem("nn_session"); }}>Sign Out</button>
           <button className="nn-btn-back" onClick={onBack}>Website</button>
         </div>
       </div>
@@ -1037,7 +1042,6 @@ export default function Dashboard({ onBack }) {
           </div>
           {availability.map((row, i) => (
             <div key={i} style={{ marginBottom: 6 }}>
-              {/* Main row */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: row.is_available ? "var(--warm-white)" : "transparent", border: "1.5px solid var(--border)", opacity: row.is_available ? 1 : .5, transition: "all .2s" }}>
                 <button onClick={() => { const newVal = !row.is_available; updateAvail(i, "is_available", newVal); saveAvailability(i, { is_available: newVal }); }}
                   style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: row.is_available ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
@@ -1056,25 +1060,17 @@ export default function Dashboard({ onBack }) {
                 )}
                 {!row.is_available && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Not working</span>}
               </div>
-
-              {/* Break row — only shown when day is active */}
               {row.is_available && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 54px", background: "var(--cream)", border: "1.5px solid var(--border)", borderTop: "none" }}>
                   <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>Break</span>
-                  <input
-                    type="time"
-                    value={row.break_start || ""}
-                    placeholder="--:--"
+                  <input type="time" value={row.break_start || ""} placeholder="--:--"
                     onChange={e => updateAvail(i, "break_start", e.target.value || null)}
                     onBlur={() => saveAvailability(i)}
-                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", width: 90 }}
-                  />
+                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", width: 90 }} />
                   <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>for</span>
-                  <select
-                    value={row.break_duration || ""}
+                  <select value={row.break_duration || ""}
                     onChange={e => { updateAvail(i, "break_duration", e.target.value ? parseInt(e.target.value) : null); setTimeout(() => saveAvailability(i), 100); }}
-                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}
-                  >
+                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
                     <option value="">No break</option>
                     <option value="30">30 min</option>
                     <option value="45">45 min</option>
