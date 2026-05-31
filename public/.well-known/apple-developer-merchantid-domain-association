@@ -1,1 +1,13 @@
-
+{
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association",
+      "destination": "https://js.stripe.com/v3/apple-pay/apple-developer-merchantid-domain-association"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
