@@ -409,26 +409,18 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   function scrollToNow() {
     if (!scrollContainerRef.current) return;
     const now = new Date();
-
-    // Vertical: scroll so current time is centred
     const mins = now.getHours() * 60 + now.getMinutes();
     const startMins = HOUR_START * 60;
     const top = ((mins - startMins) / 30) * SLOT_H;
     const containerHeight = scrollContainerRef.current.clientHeight;
     scrollContainerRef.current.scrollTop = Math.max(0, top - containerHeight / 2);
-
-    // Horizontal: scroll so today's column is visible
-    // Grid is 48px time col + 7 equal columns
-    // Today's day index (0=Mon ... 6=Sun)
-    const jsDay = now.getDay(); // 0=Sun
-    const dayIdx = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
+    const jsDay = now.getDay();
+    const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
     const containerWidth = scrollContainerRef.current.clientWidth;
     const totalWidth = Math.max(scrollContainerRef.current.scrollWidth, 560);
     const timeColWidth = 48;
     const dayColWidth = (totalWidth - timeColWidth) / 7;
-    // Position of today's column left edge
     const todayLeft = timeColWidth + dayIdx * dayColWidth;
-    // Scroll so today is centred, or as close as possible
     scrollContainerRef.current.scrollLeft = Math.max(0, todayLeft - containerWidth / 2 + dayColWidth / 2);
   }
 
@@ -456,7 +448,6 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
     }
     calcNow();
     const t = setInterval(calcNow, 60000);
-    // Scroll to current time on mount
     setTimeout(scrollToNow, 150);
     return () => clearInterval(t);
   }, []);
@@ -517,7 +508,6 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
 
   return (
     <div>
-      {/* Top bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, -7))}>‹</button>
@@ -525,12 +515,9 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
             <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 400, display: "block", minWidth: 120, textAlign: "center", textDecoration: "underline dotted", textDecorationColor: "var(--border)", pointerEvents: "none" }}>
               {weekLabel}
             </span>
-            <input
-              ref={datePickerRef}
-              type="date"
+            <input ref={datePickerRef} type="date"
               style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
-              onChange={e => { if (e.target.value) setWeekStart(getWeekStart(new Date(e.target.value + "T12:00:00"))); }}
-            />
+              onChange={e => { if (e.target.value) setWeekStart(getWeekStart(new Date(e.target.value + "T12:00:00"))); }} />
           </span>
           <button className="nn-cal-btn" onClick={() => setWeekStart(d => addDays(d, 7))}>›</button>
           <button onClick={() => { setWeekStart(getWeekStart(new Date())); setTimeout(scrollToNow, 150); }}
@@ -546,10 +533,8 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
       {loading ? (
         <div style={{ color: "var(--warm-gray)", padding: 40, textAlign: "center" }}>Loading bookings...</div>
       ) : (
-        // ── scroll wrapper: pan-x for horizontal swipe, lets vertical pass through ──
         <div ref={scrollContainerRef} style={{ height: "70vh", overflowY: "auto", overflowX: "auto", WebkitOverflowScrolling: "touch", border: "1px solid var(--border)", borderRadius: 2 }}>
           <div style={{ minWidth: 560, userSelect: "none" }}>
-            {/* Day header row */}
             <div style={{ display: "grid", gridTemplateColumns: "48px repeat(7, 1fr)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10 }}>
               <div style={{ background: "var(--charcoal)" }} />
               {days.map((d, i) => {
@@ -562,17 +547,12 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                 );
               })}
             </div>
-
-            {/* Grid body */}
             <div style={{ display: "grid", gridTemplateColumns: "48px repeat(7, 1fr)", position: "relative" }}>
-              {/* Time labels */}
               <div style={{ position: "sticky", left: 0, zIndex: 5, background: "var(--cream)", height: TOTAL_SLOTS * SLOT_H }}>
                 {timeLabels.map(({ label, top }) => (
                   <div key={label} style={{ position: "absolute", top: top - 8, right: 6, fontSize: 10, color: "var(--warm-gray)", letterSpacing: ".3px", lineHeight: 1, whiteSpace: "nowrap" }}>{label}</div>
                 ))}
               </div>
-
-              {/* Day columns — touch-action: pan-y lets vertical scroll pass to the page */}
               {days.map((d, di) => {
                 const ds = toDateStr(d);
                 const dayBookings = bookingsByDate[ds] || [];
@@ -610,13 +590,11 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
         </div>
       )}
 
-      {/* Bottom sheet */}
       {sheet && (
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(44,40,37,.4)", zIndex: 300 }} onClick={closeSheet} />
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--cream)", borderTop: "1px solid var(--border)", borderRadius: "12px 12px 0 0", zIndex: 301, padding: "0 24px 48px", maxHeight: "90vh", overflowY: "auto", animation: "sheetUp .3s cubic-bezier(.22,1,.36,1)" }}>
             <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 2, margin: "14px auto 24px" }} />
-
             {sheetMode === "detail" && (
               <>
                 <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 4 }}>{sheet.client_name}</div>
@@ -637,28 +615,17 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-                  <button onClick={closeSheet}
-                    style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>
-                    Close
-                  </button>
-                  <button onClick={() => setSheetMode("edit")}
-                    style={{ flex: 1, padding: "14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                    Edit
-                  </button>
+                  <button onClick={closeSheet} style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Close</button>
+                  <button onClick={() => setSheetMode("edit")} style={{ flex: 1, padding: "14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Edit</button>
                   <button onClick={() => { if (window.confirm("Are you sure you want to cancel this booking for " + sheet.client_name + "?")) { onStatusChange(sheet.id, "cancelled"); closeSheet(); } }}
-                    style={{ flex: 1, padding: "14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                    Cancel
-                  </button>
+                    style={{ flex: 1, padding: "14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Cancel</button>
                 </div>
               </>
             )}
-
             {sheetMode === "edit" && (
               <>
                 <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 300, marginBottom: 4 }}>Reschedule</div>
-                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>
-                  {sheet.client_name} · {sheet.service_title || sheet.service_name || "Service"}
-                </div>
+                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>{sheet.client_name} · {sheet.service_title || sheet.service_name || "Service"}</div>
                 <div className="nn-cal" style={{ maxWidth: "100%", marginBottom: 20 }}>
                   <div className="nn-cal-head">
                     <button className="nn-cal-btn" onClick={() => { if (editCM === 0) { setEditCM(11); setEditCY(editCY - 1); } else setEditCM(editCM - 1); }}>‹</button>
@@ -702,10 +669,7 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                  <button onClick={() => setSheetMode("detail")}
-                    style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>
-                    Back
-                  </button>
+                  <button onClick={() => setSheetMode("detail")} style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Back</button>
                   <button onClick={handleReschedule} disabled={!editDate || !editTime || rescheduling}
                     style={{ flex: 2, padding: "14px", background: "var(--gold)", color: "var(--charcoal)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: editDate && editTime && !rescheduling ? 1 : .35 }}>
                     {rescheduling ? "Saving..." : "Confirm New Time"}
@@ -747,41 +711,23 @@ export default function Dashboard({ onBack }) {
   const [staffBookServices, setStaffBookServices] = useState([]);
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // Restore session from localStorage on mount, refreshing the token if needed
   useEffect(() => {
     async function restoreSession() {
       try {
         const saved = localStorage.getItem("nn_session");
         if (!saved) return;
         const { session, prac: savedPrac } = JSON.parse(saved);
-        if (!session?.refresh_token || !savedPrac) {
-          localStorage.removeItem("nn_session"); return;
-        }
-        // Always refresh the token on mount — access tokens expire after 1 hour
-        // but refresh tokens last much longer
+        if (!session?.refresh_token || !savedPrac) { localStorage.removeItem("nn_session"); return; }
         const res = await fetch(
           import.meta.env.VITE_SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({ refresh_token: session.refresh_token }),
-          }
+          { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }, body: JSON.stringify({ refresh_token: session.refresh_token }) }
         );
-        if (!res.ok) {
-          // Refresh token also expired — clear and show login
-          localStorage.removeItem("nn_session"); return;
-        }
+        if (!res.ok) { localStorage.removeItem("nn_session"); return; }
         const newSession = await res.json();
-        // Update stored session with fresh tokens
         localStorage.setItem("nn_session", JSON.stringify({ session: newSession, prac: savedPrac }));
         setAuth(newSession);
         setPrac(savedPrac);
-      } catch (e) {
-        localStorage.removeItem("nn_session");
-      }
+      } catch (e) { localStorage.removeItem("nn_session"); }
     }
     restoreSession();
   }, []);
@@ -906,14 +852,14 @@ export default function Dashboard({ onBack }) {
   useEffect(() => {
     if (!auth || !prac || tab !== "schedule") return;
     if (IS_DEMO) {
-      setAvailability(DAY_NAMES.map((_, i) => ({ day_of_week: i, start_time: "09:00", end_time: i < 5 ? "17:30" : "17:00", is_available: i < 6 })));
+      setAvailability(DAY_NAMES.map((_, i) => ({ day_of_week: i, start_time: "09:00", end_time: i < 5 ? "17:30" : "17:00", is_available: i < 6, break_start: null, break_duration: null })));
       setBlockedDates([]); return;
     }
     Promise.all([
       supabase.query("availability", { filters: "&practitioner_id=eq." + prac.id + "&order=day_of_week", token: auth.access_token }),
       supabase.query("blocked_dates", { filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + new Date().toISOString().split("T")[0] + "&order=blocked_date", token: auth.access_token }),
     ]).then(([avail, blocked]) => {
-      const filled = DAY_NAMES.map((_, i) => avail.find(a => a.day_of_week === i) || { day_of_week: i, start_time: "09:00", end_time: "17:30", is_available: false });
+      const filled = DAY_NAMES.map((_, i) => avail.find(a => a.day_of_week === i) || { day_of_week: i, start_time: "09:00", end_time: "17:30", is_available: false, break_start: null, break_duration: null });
       setAvailability(filled); setBlockedDates(blocked);
     }).catch(console.error);
   }, [auth, prac, tab]);
@@ -922,11 +868,18 @@ export default function Dashboard({ onBack }) {
     const row = availability[day];
     if (IS_DEMO) return;
     try {
+      const payload = {
+        is_available: row.is_available,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        break_start: row.break_start || null,
+        break_duration: row.break_duration ? parseInt(row.break_duration) : null,
+      };
       const res = await fetch(SUPABASE_URL + "/rest/v1/availability?practitioner_id=eq." + prac.id + "&day_of_week=eq." + day, {
         method: "PATCH", headers: { ...supabase.headers(auth.access_token), Prefer: "return=representation" },
-        body: JSON.stringify({ is_available: row.is_available, start_time: row.start_time, end_time: row.end_time }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) await supabase.insert("availability", { practitioner_id: prac.id, day_of_week: day, start_time: row.start_time, end_time: row.end_time, is_available: row.is_available }, auth.access_token);
+      if (!res.ok) await supabase.insert("availability", { practitioner_id: prac.id, day_of_week: day, ...payload }, auth.access_token);
     } catch (e) { console.error(e); }
   }
 
@@ -1007,23 +960,14 @@ export default function Dashboard({ onBack }) {
       {tab === "bookings" && (
         <div>
           {showStaffBooking ? (
-            <StaffBookingForm
-              prac={prac}
-              services={staffBookServices}
-              token={auth.access_token}
+            <StaffBookingForm prac={prac} services={staffBookServices} token={auth.access_token}
               onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
-              onCancel={() => setShowStaffBooking(false)}
-            />
+              onCancel={() => setShowStaffBooking(false)} />
           ) : (
-            <WeekView
-              bookings={confirmedBookings}
-              loading={loading}
-              prac={prac}
-              token={auth.access_token}
+            <WeekView bookings={confirmedBookings} loading={loading} prac={prac} token={auth.access_token}
               onAddBooking={() => setShowStaffBooking(true)}
               onStatusChange={updateStatus}
-              onReschedule={rescheduleBooking}
-            />
+              onReschedule={rescheduleBooking} />
           )}
         </div>
       )}
@@ -1033,7 +977,6 @@ export default function Dashboard({ onBack }) {
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
-          {/* Add service button + inline form at the top */}
           {!showServiceForm && !editingCustomService && (
             <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
               <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
@@ -1043,7 +986,6 @@ export default function Dashboard({ onBack }) {
             <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
               onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
           )}
-
           {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
             <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, paddingBottom: 16 }}>No services yet — tap above to add your first.</div>
           ) : (
@@ -1082,7 +1024,6 @@ export default function Dashboard({ onBack }) {
               )}
             </div>
           )}
-
         </div>
       )}
 
@@ -1090,35 +1031,78 @@ export default function Dashboard({ onBack }) {
         <div style={{ maxWidth: 680 }}>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
 
+          {/* ── Weekly Hours ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Weekly Hours
           </div>
           {availability.map((row, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: row.is_available ? "var(--warm-white)" : "transparent", border: "1.5px solid var(--border)", marginBottom: 6, opacity: row.is_available ? 1 : .5, transition: "all .2s" }}>
-              <button onClick={() => { updateAvail(i, "is_available", !row.is_available); setTimeout(() => saveAvailability(i), 100); }} style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: row.is_available ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
-                <span style={{ position: "absolute", top: 3, left: row.is_available ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
-              </button>
-              <div style={{ width: 80, fontSize: 13, fontWeight: row.is_available ? 500 : 300, color: row.is_available ? "var(--charcoal)" : "var(--warm-gray)", flexShrink: 0 }}>{DAY_NAMES[i]}</div>
+            <div key={i} style={{ marginBottom: 6 }}>
+              {/* Main row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: row.is_available ? "var(--warm-white)" : "transparent", border: "1.5px solid var(--border)", opacity: row.is_available ? 1 : .5, transition: "all .2s" }}>
+                <button onClick={() => { updateAvail(i, "is_available", !row.is_available); setTimeout(() => saveAvailability(i), 100); }}
+                  style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: row.is_available ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                  <span style={{ position: "absolute", top: 3, left: row.is_available ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+                </button>
+                <div style={{ width: 80, fontSize: 13, fontWeight: row.is_available ? 500 : 300, color: row.is_available ? "var(--charcoal)" : "var(--warm-gray)", flexShrink: 0 }}>{DAY_NAMES[i]}</div>
+                {row.is_available && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>From</span>
+                    <input type="time" value={row.start_time} onChange={e => updateAvail(i, "start_time", e.target.value)} onBlur={() => saveAvailability(i)}
+                      style={{ padding: "6px 8px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", flex: 1, minWidth: 0 }} />
+                    <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>Until</span>
+                    <input type="time" value={row.end_time} onChange={e => updateAvail(i, "end_time", e.target.value)} onBlur={() => saveAvailability(i)}
+                      style={{ padding: "6px 8px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", flex: 1, minWidth: 0 }} />
+                  </div>
+                )}
+                {!row.is_available && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Not working</span>}
+              </div>
+
+              {/* Break row — only shown when day is active */}
               {row.is_available && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>From</span>
-                  <input type="time" value={row.start_time} onChange={e => updateAvail(i, "start_time", e.target.value)} onBlur={() => saveAvailability(i)} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", flex: 1, minWidth: 0 }} />
-                  <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>Until</span>
-                  <input type="time" value={row.end_time} onChange={e => updateAvail(i, "end_time", e.target.value)} onBlur={() => saveAvailability(i)} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", flex: 1, minWidth: 0 }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 54px", background: "var(--cream)", border: "1.5px solid var(--border)", borderTop: "none" }}>
+                  <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>Break</span>
+                  <input
+                    type="time"
+                    value={row.break_start || ""}
+                    placeholder="--:--"
+                    onChange={e => updateAvail(i, "break_start", e.target.value || null)}
+                    onBlur={() => saveAvailability(i)}
+                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", width: 90 }}
+                  />
+                  <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>for</span>
+                  <select
+                    value={row.break_duration || ""}
+                    onChange={e => { updateAvail(i, "break_duration", e.target.value ? parseInt(e.target.value) : null); setTimeout(() => saveAvailability(i), 100); }}
+                    style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}
+                  >
+                    <option value="">No break</option>
+                    <option value="15">15 min</option>
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">1 hour</option>
+                  </select>
+                  {row.break_start && row.break_duration && (
+                    <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 300, marginLeft: 4 }}>
+                      {row.break_start.slice(0,5)} – {(() => {
+                        const [h, m] = row.break_start.split(":").map(Number);
+                        const end = new Date(0, 0, 0, h, m + parseInt(row.break_duration));
+                        return String(end.getHours()).padStart(2,"0") + ":" + String(end.getMinutes()).padStart(2,"0");
+                      })()}
+                    </span>
+                  )}
                 </div>
               )}
-              {!row.is_available && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Not working</span>}
             </div>
           ))}
 
+          {/* ── Booking Window ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Booking Window
           </div>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How far ahead can clients book? Dates beyond this window will not be available.</p>
           <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Clients can book up to</span>
-            <select
-              value={prac?.booking_window_weeks || 8}
+            <select value={prac?.booking_window_weeks || 8}
               onChange={async e => {
                 const weeks = parseInt(e.target.value);
                 if (IS_DEMO) return;
@@ -1127,8 +1111,7 @@ export default function Dashboard({ onBack }) {
                   setPrac(prev => ({ ...prev, booking_window_weeks: weeks }));
                 } catch (err) { console.error(err); }
               }}
-              style={{ padding: "10px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}
-            >
+              style={{ padding: "10px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
               {Array.from({ length: 16 }, (_, i) => i + 1).map(w => (
                 <option key={w} value={w}>{w} week{w !== 1 ? "s" : ""}</option>
               ))}
@@ -1136,6 +1119,7 @@ export default function Dashboard({ onBack }) {
             <span style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300 }}>in advance</span>
           </div>
 
+          {/* ── Blocked Dates ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Blocked Dates
           </div>
@@ -1189,6 +1173,7 @@ export default function Dashboard({ onBack }) {
             ))
           )}
 
+          {/* ── Booking Slots ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Booking Slots
           </div>
@@ -1212,6 +1197,7 @@ export default function Dashboard({ onBack }) {
             ))}
           </div>
 
+          {/* ── Calendar Sync ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Calendar Sync
           </div>
