@@ -460,7 +460,6 @@ cells.push(
     {dotColor && <span style={{ display:"block", width:5, height:5, borderRadius:"50%", background:dotColor, margin:"2px auto 0" }}/>}
   </button>
 );
-                    );
                   }
                   return cells;
                 })()}
