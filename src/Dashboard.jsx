@@ -850,7 +850,7 @@ export default function Dashboard({ onBack }) {
   const existingGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
 
   useEffect(() => {
-    if (!auth || !prac || tab !== "schedule") return;
+    if (!auth || !prac || tab !== "schedule" || availability.length > 0) return;
     if (IS_DEMO) {
       setAvailability(DAY_NAMES.map((_, i) => ({ day_of_week: i, start_time: "09:00", end_time: i < 5 ? "17:30" : "17:00", is_available: i < 6, break_start: null, break_duration: null })));
       setBlockedDates([]); return;
