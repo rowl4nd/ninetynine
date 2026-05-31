@@ -746,6 +746,7 @@ export function BookingSuccess({ params }) {
 export function CancelPage({ token }) {
   const [status, setStatus] = useState("loading");
   const [booking, setBooking] = useState(null);
+  const [refundResult, setRefundResult] = useState(null);
 
   useEffect(() => {
     if (!token) { setStatus("invalid"); return; }
@@ -761,26 +762,46 @@ export function CancelPage({ token }) {
   async function handleCancel() {
     setStatus("cancelling");
     try {
-      await supabase.update("bookings", { status: "cancelled", cancelled_by: "client" }, "cancellation_token=eq." + token);
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-booking`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ cancellation_token: token }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setRefundResult(data);
       setStatus("done");
-    } catch (e) { console.error(e); setStatus("error"); }
+    } catch (e) {
+      console.error(e);
+      setStatus("error");
+    }
   }
 
   const dateObj = booking ? new Date(booking.booking_date + "T12:00:00") : null;
   const formattedDate = dateObj?.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const treatmentName = booking?.service_title || booking?.notes || "Your treatment";
 
+  // Calculate refund eligibility for display
+  const hoursUntil = booking ? (new Date(`${booking.booking_date}T${booking.booking_time}`) - new Date()) / (1000 * 60 * 60) : 0;
+  const eligibleForRefund = booking?.deposit_paid && hoursUntil >= 48;
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
       <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontStyle: "italic", fontWeight: 300, marginBottom: 8 }}>ninety nine.</div>
       <div style={{ width: 36, height: 1.5, background: "var(--gold)", margin: "0 auto 40px" }} />
+
       {status === "loading" && <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading...</div>}
+
       {status === "notfound" && (
         <div style={{ textAlign: "center", maxWidth: 380 }}>
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 14 }}>Booking not found</div>
           <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7 }}>This booking may have already been cancelled. DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)" }}>@ninetyninebyk</a> if you need help.</p>
         </div>
       )}
+
       {status === "confirm" && booking && (
         <div style={{ maxWidth: 440, width: "100%" }}>
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 8, textAlign: "center" }}>Cancel appointment</div>
@@ -794,13 +815,10 @@ export function CancelPage({ token }) {
             ))}
             {booking.deposit_paid && (
               <div style={{ padding: "14px 0 0", fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6 }}>
-                {(() => {
-                  const apptDt = new Date(booking.booking_date + "T" + booking.booking_time);
-                  const hoursUntil = (apptDt - new Date()) / (1000 * 60 * 60);
-                  return hoursUntil >= 48
-                    ? `Your £${booking.deposit_amount} deposit will be refunded automatically.`
-                    : `This appointment is within 48 hours — your £${booking.deposit_amount} deposit is non-refundable.`;
-                })()}
+                {eligibleForRefund
+                  ? `Your £${booking.deposit_amount} deposit will be refunded automatically.`
+                  : `This appointment is within 48 hours — your £${booking.deposit_amount} deposit is non-refundable.`
+                }
               </div>
             )}
           </div>
@@ -810,14 +828,42 @@ export function CancelPage({ token }) {
           </div>
         </div>
       )}
-      {status === "cancelling" && <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Cancelling your appointment...</div>}
+
+      {status === "cancelling" && (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, marginBottom: 4 }}>Cancelling your appointment...</div>
+          {booking?.deposit_paid && eligibleForRefund && (
+            <div style={{ fontSize: 12, color: "var(--taupe)", fontWeight: 300 }}>Processing your refund</div>
+          )}
+        </div>
+      )}
+
       {status === "done" && (
-        <div style={{ textAlign: "center", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 14 }}>Booking cancelled</div>
-          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: 28 }}>Your appointment has been cancelled. We hope to see you again soon.</p>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: refundResult?.deposit_refunded || refundResult?.deposit_forfeited ? 24 : 32 }}>
+            Your appointment has been cancelled. We hope to see you again soon.
+          </p>
+          {refundResult?.deposit_refunded && (
+            <div style={{ background: "#f0f7f0", border: "1px solid #7BA87B", padding: "16px 20px", marginBottom: 32, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#7BA87B", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Deposit Refunded</div>
+              <div style={{ fontSize: 13, fontWeight: 300, color: "var(--charcoal)", lineHeight: 1.6 }}>
+                Your £{refundResult.deposit_amount} deposit will be returned to your original payment method within 5–10 business days.
+              </div>
+            </div>
+          )}
+          {refundResult?.deposit_forfeited && (
+            <div style={{ background: "#fdf5f5", border: "1px solid #C46E6E", padding: "16px 20px", marginBottom: 32, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--red)", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Deposit Not Refunded</div>
+              <div style={{ fontSize: 13, fontWeight: 300, color: "var(--charcoal)", lineHeight: 1.6 }}>
+                As this appointment was cancelled within 48 hours, your £{refundResult.deposit_amount} deposit is non-refundable.
+              </div>
+            </div>
+          )}
           <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>Back to Website</a>
         </div>
       )}
+
       {status === "error" && (
         <div style={{ textAlign: "center", maxWidth: 380 }}>
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 14 }}>Something went wrong</div>
@@ -903,17 +949,26 @@ export function ClientPortal({ email, token }) {
   }
 
   async function handleCancel(booking) {
-    if (!window.confirm(`Cancel your ${booking.service_title} on ${new Date(booking.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}?`)) return;
-    setCancellingId(booking.id);
-    try {
-      await supabase.update("bookings", { status: "cancelled", cancelled_by: "client" }, "cancellation_token=eq." + booking.cancellation_token);
-      setBookings(prev => prev.filter(b => b.id !== booking.id));
-    } catch (e) {
-      console.error(e);
-      alert("Something went wrong. Please DM us on Instagram @ninetyninebyk.");
-    }
-    setCancellingId(null);
+  if (!window.confirm(`Cancel your ${booking.service_title} on ${new Date(booking.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}?`)) return;
+  setCancellingId(booking.id);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-booking`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ cancellation_token: booking.cancellation_token }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    setBookings(prev => prev.filter(b => b.id !== booking.id));
+  } catch (e) {
+    console.error(e);
+    alert("Something went wrong. Please DM us on Instagram @ninetyninebyk.");
   }
+  setCancellingId(null);
+}
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)", padding: "40px 24px" }}>
