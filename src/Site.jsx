@@ -196,50 +196,119 @@ function isValidEmail(email) {
 
 function DepositPayment({ prac, clientName, clientEmail, onPaymentReady, onPaymentError }) {
   const cardElementRef = useRef(null);
-  const [stripe, setStripe] = useState(null);
-  const [elements, setElements] = useState(null);
-  const [cardReady, setCardReady] = useState(false);
+  const prButtonRef = useRef(null);
   const [loadingStripe, setLoadingStripe] = useState(true);
   const [error, setError] = useState(null);
+  const [prAvailable, setPrAvailable] = useState(false);
+  const [showCard, setShowCard] = useState(false);
 
   useEffect(() => {
     const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
     if (!key) { setError("Payment unavailable — no Stripe key configured."); setLoadingStripe(false); return; }
-    loadStripe(key).then(s => {
-      const els = s.elements();
-      const card = els.create("card", {
-        style: {
-          base: {
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "15px",
-            color: "#2C2825",
-            "::placeholder": { color: "#B8A08A" },
-          },
-          invalid: { color: "#C46E6E" },
-        },
+
+    loadStripe(key).then(async s => {
+      const depositPence = (prac.deposit_amount || 10) * 100;
+
+      // ── Try Payment Request (Apple Pay / Google Pay) ──
+      const pr = s.paymentRequest({
+        country: "GB",
+        currency: "gbp",
+        total: { label: `Deposit — ninety nine.`, amount: depositPence },
+        requestPayerName: true,
+        requestPayerEmail: true,
       });
-      card.mount(cardElementRef.current);
-      card.on("change", e => {
-        setCardReady(e.complete);
-        setError(e.error ? e.error.message : null);
-        if (e.complete) {
-          // Expose confirm function to parent via callback
-          onPaymentReady(() => confirmPayment(s, card));
-        } else {
-          onPaymentReady(null);
-        }
-      });
-      setStripe(s);
-      setElements(els);
-      setLoadingStripe(false);
+
+      const canMake = await pr.canMakePayment();
+
+      if (canMake) {
+        setPrAvailable(true);
+        setLoadingStripe(false);
+
+        pr.on("paymentmethod", async (e) => {
+          try {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                practitioner_id: prac.id,
+                amount: prac.deposit_amount,
+                client_name: clientName,
+                client_email: clientEmail,
+              }),
+            });
+            const data = await res.json();
+            if (data.error) { e.complete("fail"); throw new Error(data.error); }
+
+            const { error: confirmError, paymentIntent } = await s.confirmCardPayment(
+              data.client_secret,
+              { payment_method: e.paymentMethod.id },
+              { handleActions: false }
+            );
+
+            if (confirmError) { e.complete("fail"); throw new Error(confirmError.message); }
+
+            if (paymentIntent.status === "requires_action") {
+              const { error: actionError } = await s.confirmCardPayment(data.client_secret);
+              if (actionError) { e.complete("fail"); throw new Error(actionError.message); }
+            }
+
+            e.complete("success");
+            onPaymentReady(() => Promise.resolve({ paymentIntentId: paymentIntent.id, depositAmount: prac.deposit_amount }));
+          } catch (err) {
+            setError(err.message);
+            onPaymentReady(null);
+          }
+        });
+
+        // Mount the Payment Request Button
+        setTimeout(() => {
+          if (prButtonRef.current) {
+            const els = s.elements();
+            const button = els.create("paymentRequestButton", {
+              paymentRequest: pr,
+              style: { paymentRequestButton: { type: "default", theme: "dark", height: "48px" } },
+            });
+            button.mount(prButtonRef.current);
+          }
+        }, 50);
+
+      } else {
+        // Fall back to card element
+        setShowCard(true);
+        setLoadingStripe(false);
+
+        setTimeout(() => {
+          if (!cardElementRef.current) return;
+          const els = s.elements();
+          const card = els.create("card", {
+            style: {
+              base: {
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "15px",
+                color: "#2C2825",
+                "::placeholder": { color: "#B8A08A" },
+              },
+              invalid: { color: "#C46E6E" },
+            },
+          });
+          card.mount(cardElementRef.current);
+          card.on("change", ev => {
+            setError(ev.error ? ev.error.message : null);
+            if (ev.complete) {
+              onPaymentReady(() => confirmCardPayment(s, card));
+            } else {
+              onPaymentReady(null);
+            }
+          });
+        }, 50);
+      }
     }).catch(() => {
       setError("Failed to load payment form. Please refresh and try again.");
       setLoadingStripe(false);
     });
   }, []);
 
-  async function confirmPayment(stripeInstance, cardElement) {
-    // Create PaymentIntent via Edge Function
+  async function confirmCardPayment(stripeInstance, cardElement) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -252,38 +321,7 @@ function DepositPayment({ prac, clientName, clientEmail, onPaymentReady, onPayme
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-
-    // Confirm payment on client side
-    const { error: stripeError, paymentIntent } = await stripeInstance.confirmCardPayment(
-      data.client_secret,
-      { payment_method: { card: cardElement, billing_details: { name: clientName, email: clientEmail } } }
-    );
-    if (stripeError) throw new Error(stripeError.message);
-    return { paymentIntentId: paymentIntent.id, depositAmount: prac.deposit_amount };
-  }
-
-  return (
-    <div style={{ marginTop: 24, padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--gold)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--gold)" }}>
-          £{prac.deposit_amount} Deposit Required
-        </div>
-      </div>
-      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 16 }}>
-        A deposit is required to secure your appointment. This will be deducted from your total on the day.
-        Free cancellation up to 48 hours before your appointment.
-      </div>
-      {loadingStripe && (
-      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 8 }}>Loading payment form...</div>
-    )}
-    <div
-      ref={cardElementRef}
-      style={{ padding: "13px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", minHeight: 46, display: loadingStripe ? "none" : "block" }}
-    />
-    {error && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8, fontWeight: 300 }}>{error}</div>}
-    </div>
-  );
-}
+    const { er
 
 // ============================================================
 // BOOKING FLOW
