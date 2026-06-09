@@ -354,37 +354,45 @@ export function WaitlistBookPage({ token }) {
 
   useEffect(() => {
     if (!token) { setStatus("invalid"); return; }
+    
     async function load() {
-      try {
-        // Load waitlist entry
-        const entries = await supabase.query("waitlist", {
-          select: "*,practitioner:practitioners(*)",
-          filters: `&booking_token=eq.${token}&status=eq.waiting`,
-        });
-        if (entries.length === 0) { setStatus("taken"); return; }
-        const e = entries[0];
-        setEntry(e);
-        setPrac(e.practitioner);
-        setClientName(e.client_name);
-        setPhone(e.client_phone);
-        setEmail(e.client_email);
+  try {
+    // Load waitlist entry without the join — fetch practitioner separately
+    const entries = await supabase.query("waitlist", {
+      filters: "&booking_token=eq." + token + "&status=eq.waiting",
+    });
+    if (!entries || entries.length === 0) { setStatus("taken"); return; }
+    const e = entries[0];
+    setEntry(e);
 
-        // Check available slots for that date
-        const rows = await supabase.rpc("get_available_slots", {
-          p_practitioner_id: e.practitioner_id,
-          p_date: e.waitlist_date,
-          p_duration: entry.duration || 30,
-          p_interval: e.practitioner?.slot_interval || 30,
-        });
-        const available = rows.map(r => r.slot_time.slice(0, 5));
-        if (available.length === 0) { setStatus("taken"); return; }
-        setSlots(available);
-        setStatus("ready");
-      } catch (err) {
-        console.error(err);
-        setStatus("error");
-      }
-    }
+    // Fetch practitioner separately
+    const pracs = await supabase.query("practitioners", {
+      filters: "&id=eq." + e.practitioner_id,
+    });
+    if (!pracs || pracs.length === 0) { setStatus("error"); return; }
+    const p = pracs[0];
+    setPrac(p);
+
+    setClientName(e.client_name);
+    setPhone(e.client_phone);
+    setEmail(e.client_email);
+
+    // Check available slots using the stored duration
+    const rows = await supabase.rpc("get_available_slots", {
+      p_practitioner_id: e.practitioner_id,
+      p_date: e.waitlist_date,
+      p_duration: e.duration || 30,
+      p_interval: p.slot_interval || 30,
+    });
+    const available = rows.map(r => r.slot_time.slice(0, 5));
+    if (available.length === 0) { setStatus("taken"); return; }
+    setSlots(available);
+    setStatus("ready");
+  } catch (err) {
+    console.error(err);
+    setStatus("error");
+  }
+}
     load();
   }, [token]);
 
