@@ -176,22 +176,22 @@ function isValidEmail(email) {
 // WAITLIST JOIN (shown when no slots available on selected date)
 // ============================================================
 
-function WaitlistJoin({ prac, date }) {
+function WaitlistJoin({ prac, date, services }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
+  const [selectedSvc, setSelectedSvc] = useState(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [alreadyOn, setAlreadyOn] = useState(false);
   const emailValid = isValidEmail(email);
-  const canSubmit = name.trim() && phone.trim() && emailValid && !saving;
+  const canSubmit = name.trim() && phone.trim() && emailValid && selectedSvc && !saving;
 
   async function handleJoin() {
     if (!canSubmit) return;
     setSaving(true);
     try {
-      // Check for duplicate — same email, same practitioner, same date
       const existing = await supabase.query("waitlist", {
         filters: `&practitioner_id=eq.${prac.id}&waitlist_date=eq.${dateStr(date.year, date.month, date.day)}&client_email=eq.${encodeURIComponent(email.toLowerCase().trim())}&status=eq.waiting`,
       });
@@ -203,6 +203,10 @@ function WaitlistJoin({ prac, date }) {
         client_name: name.trim(),
         client_email: email.toLowerCase().trim(),
         client_phone: phone.trim(),
+        service_id: selectedSvc.id,
+        service_title: selectedSvc.title,
+        duration: selectedSvc.duration,
+        price: selectedSvc.price,
       });
       setDone(true);
     } catch (e) {
@@ -239,6 +243,9 @@ function WaitlistJoin({ prac, date }) {
     );
   }
 
+  const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
+  const ungrouped = services.filter(s => !s.group_name);
+
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontSize: 13, color: "var(--red)", fontWeight: 300, marginBottom: 16 }}>
@@ -246,8 +253,45 @@ function WaitlistJoin({ prac, date }) {
       </div>
       <div style={{ padding: "20px", background: "var(--cream)", border: "1.5px solid var(--border)" }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Join the waitlist</div>
-        <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.6 }}>
           We'll email you if a cancellation comes up on {formattedDate} with {prac.name}.
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10 }}>Which service?</div>
+          {groups.map(group => (
+            <div key={group} style={{ marginBottom: 12 }}>
+              <div className="nn-svc-group-label">{group}</div>
+              {services.filter(s => s.group_name === group).map(s => (
+                <div key={s.id}
+                  className={"nn-svc-item" + (selectedSvc?.id === s.id ? " picked" : "")}
+                  onClick={() => setSelectedSvc(s)}
+                  style={{ marginBottom: 6, padding: "12px 16px" }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{s.duration} min</div>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)" }}>£{s.price}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {ungrouped.length > 0 && (
+            <div>
+              {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
+              {ungrouped.map(s => (
+                <div key={s.id}
+                  className={"nn-svc-item" + (selectedSvc?.id === s.id ? " picked" : "")}
+                  onClick={() => setSelectedSvc(s)}
+                  style={{ marginBottom: 6, padding: "12px 16px" }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{s.duration} min</div>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)" }}>£{s.price}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={{ fontSize: 13, padding: "10px 14px" }} />
@@ -308,7 +352,7 @@ export function WaitlistBookPage({ token }) {
         const rows = await supabase.rpc("get_available_slots", {
           p_practitioner_id: e.practitioner_id,
           p_date: e.waitlist_date,
-          p_duration: 30,
+          p_duration: entry.duration || 30,
           p_interval: e.practitioner?.slot_interval || 30,
         });
         const available = rows.map(r => r.slot_time.slice(0, 5));
@@ -331,7 +375,7 @@ export function WaitlistBookPage({ token }) {
       const rows = await supabase.rpc("get_available_slots", {
         p_practitioner_id: entry.practitioner_id,
         p_date: entry.waitlist_date,
-        p_duration: 30,
+        p_duration: entry.duration || 30,
         p_interval: prac?.slot_interval || 30,
       });
       const stillAvailable = rows.map(r => r.slot_time.slice(0, 5));
@@ -342,19 +386,19 @@ export function WaitlistBookPage({ token }) {
 
       // Create the booking
       await supabase.insert("bookings", {
-        practitioner_id: entry.practitioner_id,
-        service_id: null,
-        service_title: "Appointment",
-        client_name: clientName.trim(),
-        client_phone: phone.trim(),
-        client_email: email.trim(),
-        booking_date: entry.waitlist_date,
-        booking_time: time + ":00",
-        duration: 30,
-        price: 0,
-        notes: "Booked via waitlist",
-        deposit_paid: false,
-      });
+  practitioner_id: entry.practitioner_id,
+  service_id: entry.service_id || null,
+  service_title: entry.service_title || "Appointment",
+  client_name: clientName.trim(),
+  client_phone: phone.trim(),
+  client_email: email.trim(),
+  booking_date: entry.waitlist_date,
+  booking_time: time + ":00",
+  duration: entry.duration || 30,
+  price: entry.price || 0,
+  notes: "Booked via waitlist",
+  deposit_paid: false,
+});
 
       // Mark waitlist entry as booked
       await supabase.update("waitlist", { status: "booked" }, `booking_token=eq.${token}`);
@@ -804,7 +848,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                 {slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
                 ) : slots.length === 0 ? (
-  <WaitlistJoin prac={prac} date={date} />
+  <WaitlistJoin prac={prac} date={date} services={customServices} />
 ) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
