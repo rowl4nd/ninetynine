@@ -455,13 +455,14 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   }, []);
 
   function openSheet(b) {
-    setSheet(b);
-    setSheetMode("detail");
-    setEditDate(null);
-    setEditTime(null);
-    setEditCM(now.getMonth());
-    setEditCY(now.getFullYear());
-  }
+  setSheet(b);
+  setSheetMode("detail");
+  setEditDate(null);
+  setEditTime(null);
+  setEditCM(now.getMonth());
+  setEditCY(now.getFullYear());
+  setClientHistory(null);
+}
 
   function closeSheet() {
   setSheet(null);
@@ -645,8 +646,9 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
       <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>No other upcoming appointments.</div>
     ) : (
       clientHistory.map(b => (
-        <div key={b.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-          <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>
+<div key={b.id} onClick={() => openSheet(b)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13, cursor: "pointer", transition: "opacity .15s" }}
+  onMouseEnter={e => e.currentTarget.style.opacity = ".6"}
+  onMouseLeave={e => e.currentTarget.style.opacity = "1"}>          <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>
             {new Date(b.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at {b.booking_time?.slice(0, 5)}
           </span>
           <span style={{ fontWeight: 500 }}>{b.service_title || "Appointment"}</span>
