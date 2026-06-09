@@ -189,6 +189,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
   const [customServices, setCustomServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const now = new Date();
@@ -198,7 +200,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
 
   const emailValid = isValidEmail(email);
   const depositsEnabled = !IS_DEMO && prac?.deposits_enabled && prac?.stripe_account_id;
-  const canConfirm = clientName.trim() && phone.trim() && emailValid && !saving;
+  const canConfirm = clientName.trim() && phone.trim() && emailValid && termsAccepted && !saving;
 
   useEffect(() => {
     if (preselectedPrac) {
@@ -582,6 +584,30 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                 </div>
               </div>
             </div>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"16px 20px", background:"var(--cream)", border:"1.5px solid var(--border)" }}>
+  <input
+    type="checkbox"
+    id="terms"
+    checked={termsAccepted}
+    onChange={e => setTermsAccepted(e.target.checked)}
+    style={{ marginTop:3, accentColor:"var(--charcoal)", width:16, height:16, flexShrink:0, cursor:"pointer" }}
+  />
+  <label htmlFor="terms" style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.6, cursor:"pointer" }}>
+    I agree to the{" "}
+    <span
+      onClick={e => { e.preventDefault(); setShowPolicy(o => !o); }}
+      style={{ color:"var(--gold)", textDecoration:"underline", cursor:"pointer" }}
+    >
+      booking & cancellation policy
+    </span>
+    {" "}and consent to my details being stored to manage my appointment.
+    {showPolicy && (
+      <span style={{ display:"block", marginTop:12, padding:"14px 16px", background:"var(--warm-white)", border:"1px solid var(--border)", color:"var(--warm-gray)", fontSize:12, lineHeight:1.7 }}>
+        Cancellations made with less than 48 hours' notice may be subject to a charge at your practitioner's discretion. Your name, phone number and email address are stored solely for the purpose of managing your booking and will not be shared with third parties.
+      </span>
+    )}
+  </label>
+</div>
             {depositsEnabled && (
               <div style={{ marginTop: 20, padding: "16px 20px", background: "var(--warm-white)", border: "1px solid var(--border)", fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6 }}>
                 A £{prac.deposit_amount} deposit is required to secure your appointment. You'll be taken to our secure payment page. Free cancellation up to 48 hours before your appointment.
