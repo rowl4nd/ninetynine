@@ -173,6 +173,289 @@ function isValidEmail(email) {
 }
 
 // ============================================================
+// WAITLIST JOIN (shown when no slots available on selected date)
+// ============================================================
+
+function WaitlistJoin({ prac, date }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [alreadyOn, setAlreadyOn] = useState(false);
+  const emailValid = isValidEmail(email);
+  const canSubmit = name.trim() && phone.trim() && emailValid && !saving;
+
+  async function handleJoin() {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      // Check for duplicate — same email, same practitioner, same date
+      const existing = await supabase.query("waitlist", {
+        filters: `&practitioner_id=eq.${prac.id}&waitlist_date=eq.${dateStr(date.year, date.month, date.day)}&client_email=eq.${encodeURIComponent(email.toLowerCase().trim())}&status=eq.waiting`,
+      });
+      if (existing.length > 0) { setAlreadyOn(true); setSaving(false); return; }
+
+      await supabase.insert("waitlist", {
+        practitioner_id: prac.id,
+        waitlist_date: dateStr(date.year, date.month, date.day),
+        client_name: name.trim(),
+        client_email: email.toLowerCase().trim(),
+        client_phone: phone.trim(),
+      });
+      setDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("Something went wrong. Please try again.");
+    }
+    setSaving(false);
+  }
+
+  const formattedDate = `${getDayName(date.year, date.month, date.day)} ${date.day} ${getMonthName(date.month)}`;
+
+  if (done) {
+    return (
+      <div style={{ padding: "20px 0" }}>
+        <div className="nn-success-icon" style={{ width: 48, height: 48, margin: "0 0 16px" }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 8 }}>You're on the list</div>
+        <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7 }}>
+          We'll email you at {email} if a slot becomes available with {prac.name} on {formattedDate}.
+          Book fast — we notify everyone on the list at the same time.
+        </p>
+      </div>
+    );
+  }
+
+  if (alreadyOn) {
+    return (
+      <div style={{ padding: "16px 0" }}>
+        <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7 }}>
+          You're already on the waitlist for {prac.name} on {formattedDate}. We'll be in touch if a slot opens up.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 13, color: "var(--red)", fontWeight: 300, marginBottom: 16 }}>
+        No available slots on this day.
+      </div>
+      <div style={{ padding: "20px", background: "var(--cream)", border: "1.5px solid var(--border)" }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Join the waitlist</div>
+        <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 16, lineHeight: 1.6 }}>
+          We'll email you if a cancellation comes up on {formattedDate} with {prac.name}.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={{ fontSize: 13, padding: "10px 14px" }} />
+          <input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" style={{ fontSize: 13, padding: "10px 14px" }} />
+          <input
+            className="nn-input" type="email" value={email}
+            onChange={e => setEmail(e.target.value)}
+            onBlur={() => setEmailTouched(true)}
+            placeholder="Email address"
+            style={{ fontSize: 13, padding: "10px 14px", ...(emailTouched && !emailValid ? { borderColor: "var(--red)" } : {}) }}
+          />
+          <button onClick={handleJoin} disabled={!canSubmit}
+            style={{ padding: "11px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", opacity: canSubmit ? 1 : 0.35, marginTop: 4 }}>
+            {saving ? "Joining..." : "Join Waitlist"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// WAITLIST BOOK PAGE — /waitlist-book?token=xxx
+// Linked from the waitlist notification email
+// Checks slot is still free, then drops into normal booking confirm step
+// ============================================================
+
+export function WaitlistBookPage({ token }) {
+  const [status, setStatus] = useState("loading");
+  const [entry, setEntry] = useState(null);
+  const [prac, setPrac] = useState(null);
+  const [slots, setSlots] = useState([]);
+  const [time, setTime] = useState(null);
+  const [clientName, setClientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!token) { setStatus("invalid"); return; }
+    async function load() {
+      try {
+        // Load waitlist entry
+        const entries = await supabase.query("waitlist", {
+          select: "*,practitioner:practitioners(*)",
+          filters: `&booking_token=eq.${token}&status=eq.waiting`,
+        });
+        if (entries.length === 0) { setStatus("taken"); return; }
+        const e = entries[0];
+        setEntry(e);
+        setPrac(e.practitioner);
+        setClientName(e.client_name);
+        setPhone(e.client_phone);
+        setEmail(e.client_email);
+
+        // Check available slots for that date
+        const rows = await supabase.rpc("get_available_slots", {
+          p_practitioner_id: e.practitioner_id,
+          p_date: e.waitlist_date,
+          p_duration: 30,
+          p_interval: e.practitioner?.slot_interval || 30,
+        });
+        const available = rows.map(r => r.slot_time.slice(0, 5));
+        if (available.length === 0) { setStatus("taken"); return; }
+        setSlots(available);
+        setStatus("ready");
+      } catch (err) {
+        console.error(err);
+        setStatus("error");
+      }
+    }
+    load();
+  }, [token]);
+
+  async function handleBook() {
+    if (!time || !clientName || !phone || !email) return;
+    setSaving(true);
+    try {
+      // Re-check slots haven't been taken since page load
+      const rows = await supabase.rpc("get_available_slots", {
+        p_practitioner_id: entry.practitioner_id,
+        p_date: entry.waitlist_date,
+        p_duration: 30,
+        p_interval: prac?.slot_interval || 30,
+      });
+      const stillAvailable = rows.map(r => r.slot_time.slice(0, 5));
+      if (!stillAvailable.includes(time)) {
+        setStatus("taken");
+        return;
+      }
+
+      // Create the booking
+      await supabase.insert("bookings", {
+        practitioner_id: entry.practitioner_id,
+        service_id: null,
+        service_title: "Appointment",
+        client_name: clientName.trim(),
+        client_phone: phone.trim(),
+        client_email: email.trim(),
+        booking_date: entry.waitlist_date,
+        booking_time: time + ":00",
+        duration: 30,
+        price: 0,
+        notes: "Booked via waitlist",
+        deposit_paid: false,
+      });
+
+      // Mark waitlist entry as booked
+      await supabase.update("waitlist", { status: "booked" }, `booking_token=eq.${token}`);
+
+      setDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("Something went wrong. Please try again or DM us on Instagram.");
+    }
+    setSaving(false);
+  }
+
+  const formattedDate = entry?.waitlist_date
+    ? new Date(entry.waitlist_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--cream)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontStyle: "italic", fontWeight: 300, marginBottom: 8 }}>ninety nine.</div>
+      <div style={{ width: 36, height: 1.5, background: "var(--gold)", margin: "0 auto 40px" }} />
+
+      {status === "loading" && <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Checking availability...</div>}
+
+      {status === "taken" && (
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 28, fontWeight: 300, marginBottom: 14 }}>Slot no longer available</div>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: 32 }}>
+            Sorry — someone else got there first. Head back to the booking page to choose another date.
+          </p>
+          <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>
+            Book Another Date
+          </a>
+        </div>
+      )}
+
+      {status === "invalid" && (
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 14 }}>Invalid link</div>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7 }}>
+            This link isn't valid. Please DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)" }}>@ninetyninebyk</a>.
+          </p>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 14 }}>Something went wrong</div>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7 }}>
+            Please DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)" }}>@ninetyninebyk</a>.
+          </p>
+        </div>
+      )}
+
+      {status === "ready" && !done && entry && (
+        <div style={{ maxWidth: 440, width: "100%" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 8, textAlign: "center" }}>Book your slot</div>
+          <p style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, marginBottom: 32 }}>
+            {prac?.name} · {formattedDate}
+          </p>
+          <div style={{ background: "var(--warm-white)", border: "1px solid var(--border)", padding: "20px", marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 12 }}>Choose a time</div>
+            <div className="nn-times">
+              {slots.map(t => (
+                <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+            <input className="nn-input" type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Your name" />
+            <input className="nn-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" />
+            <input className="nn-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" />
+          </div>
+          <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 20, padding: "14px 16px", background: "var(--cream)", border: "1px solid var(--border)" }}>
+            This slot is available to everyone on the waitlist. Complete your booking now to secure it.
+          </div>
+          <button onClick={handleBook} disabled={!time || !clientName || !phone || !email || saving}
+            style={{ width: "100%", padding: "16px", background: "var(--gold)", color: "var(--charcoal)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", opacity: time && clientName && phone && email && !saving ? 1 : 0.35 }}>
+            {saving ? "Booking..." : "Confirm Booking"}
+          </button>
+        </div>
+      )}
+
+      {done && (
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div className="nn-success-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 14 }}>You're all booked</div>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: 32 }}>
+            {clientName}, your appointment with {prac?.name} is confirmed for {formattedDate} at {time}. See you at 99 Banks Road!
+          </p>
+          <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>
+            Back to Website
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // BOOKING FLOW
 // ============================================================
 
@@ -521,8 +804,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                 {slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
                 ) : slots.length === 0 ? (
-                  <div style={{ color: "var(--red)", fontSize: 13, fontWeight: 300 }}>No available slots. Try another day.</div>
-                ) : (
+  <WaitlistJoin prac={prac} date={date} />
+) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
               </div>
