@@ -401,6 +401,8 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [sheet, setSheet] = useState(null);
   const [sheetMode, setSheetMode] = useState("detail");
+  const [clientHistory, setClientHistory] = useState(null);
+  const [clientHistoryLoading, setClientHistoryLoading] = useState(false);
   const [nowTop, setNowTop] = useState(null);
   const [nowDayIdx, setNowDayIdx] = useState(null);
   const datePickerRef = useRef(null);
@@ -462,12 +464,36 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
   }
 
   function closeSheet() {
-    setSheet(null);
-    setSheetMode("detail");
-    setEditDate(null);
-    setEditTime(null);
-    setRescheduling(false);
+  setSheet(null);
+  setSheetMode("detail");
+  setEditDate(null);
+  setEditTime(null);
+  setRescheduling(false);
+  setClientHistory(null);
+}
+
+  async function loadClientHistory(booking) {
+  if (IS_DEMO) { setClientHistory([]); return; }
+  setClientHistoryLoading(true);
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const rows = await supabase.query("bookings", {
+      select: "*",
+      filters: "&practitioner_id=eq." + booking.practitioner_id +
+               "&client_phone=eq." + encodeURIComponent(booking.client_phone) +
+               "&status=eq.confirmed" +
+               "&booking_date=gte." + today +
+               "&id=neq." + booking.id +
+               "&order=booking_date.asc,booking_time.asc",
+      token: token,
+    });
+    setClientHistory(rows);
+  } catch (e) {
+    console.error(e);
+    setClientHistory([]);
   }
+  setClientHistoryLoading(false);
+}
 
   async function handleReschedule() {
     if (!editDate || !editTime || !sheet) return;
@@ -597,8 +623,38 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
             <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 2, margin: "14px auto 24px" }} />
             {sheetMode === "detail" && (
               <>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300, marginBottom: 4 }}>{sheet.client_name}</div>
-                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>
+<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 300 }}>{sheet.client_name}</div>
+  <button
+    onClick={() => {
+      if (clientHistory !== null) { setClientHistory(null); return; }
+      loadClientHistory(sheet);
+    }}
+    style={{ padding: "6px 12px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
+    {clientHistory !== null ? "Hide" : "All bookings"}
+  </button>
+</div>
+{clientHistory !== null && (
+  <div style={{ marginBottom: 20, padding: "14px 16px", background: "var(--warm-white)", border: "1px solid var(--border)" }}>
+    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10 }}>
+      Other upcoming appointments
+    </div>
+    {clientHistoryLoading ? (
+      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>Loading...</div>
+    ) : clientHistory.length === 0 ? (
+      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>No other upcoming appointments.</div>
+    ) : (
+      clientHistory.map(b => (
+        <div key={b.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+          <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>
+            {new Date(b.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at {b.booking_time?.slice(0, 5)}
+          </span>
+          <span style={{ fontWeight: 500 }}>{b.service_title || "Appointment"}</span>
+        </div>
+      ))
+    )}
+  </div>
+)}                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>
                   {new Date(sheet.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} at {sheet.booking_time?.slice(0, 5)}
                 </div>
                 {[
