@@ -1,9 +1,8 @@
 // src/App.jsx — Routing shell only
-
 import React, { useState } from "react";
 import "./App.css";
 import { IS_DEMO } from "./supabase.js";
-import Site, { CancelPage } from "./Site.jsx";
+import Site, { CancelPage, WaitlistBookPage } from "./Site.jsx";
 import Dashboard from "./Dashboard.jsx";
 
 const PREVIEW_PASS = import.meta.env.VITE_PREVIEW_PASS;
@@ -11,7 +10,6 @@ const PREVIEW_PASS = import.meta.env.VITE_PREVIEW_PASS;
 function PreviewGate({ onUnlock }) {
   const [input, setInput] = useState("");
   const [err, setErr] = useState(false);
-
   function attempt() {
     if (input === PREVIEW_PASS) {
       sessionStorage.setItem("nn_unlocked", "1");
@@ -21,7 +19,6 @@ function PreviewGate({ onUnlock }) {
       setInput("");
     }
   }
-
   return (
     <div style={{ minHeight:"100vh", background:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
       <div style={{ width:"100%", maxWidth:360, textAlign:"center" }}>
@@ -57,18 +54,16 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(
     !PREVIEW_PASS || sessionStorage.getItem("nn_unlocked") === "1"
   );
-
   const params = new URLSearchParams(window.location.search);
   const cancelToken = params.get("token");
   const isCancelPage = window.location.pathname === "/cancel" && cancelToken;
   const isPortalPage = window.location.pathname === "/my-bookings";
+  const isWaitlistPage = window.location.pathname === "/waitlist-book" && params.get("token");
 
-  // Token-based pages bypass the gate — clients need these links to work
+  // Token-based pages bypass the gate
   if (isCancelPage) return <CancelPage token={cancelToken} />;
-  if (isPortalPage) {
-    // Let Site handle the portal route; it'll render ClientPortal inside
-    return <Site onDash={() => setPage("dashboard")} />;
-  }
+  if (isWaitlistPage) return <WaitlistBookPage token={params.get("token")} />;
+  if (isPortalPage) return <Site onDash={() => setPage("dashboard")} />;
 
   if (!unlocked) return <PreviewGate onUnlock={() => setUnlocked(true)} />;
 
