@@ -208,6 +208,27 @@ function WaitlistJoin({ prac, date, services }) {
         duration: selectedSvc.duration,
         price: selectedSvc.price,
       });
+
+      // Send waitlist confirmation email
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/waitlist-confirmation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            client_name: name.trim(),
+            client_email: email.toLowerCase().trim(),
+            practitioner_name: prac.name,
+            waitlist_date: dateStr(date.year, date.month, date.day),
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Waitlist confirmation email failed:", emailErr);
+        // Don't block the user — they're still on the list
+      }
+
       setDone(true);
     } catch (e) {
       console.error(e);
