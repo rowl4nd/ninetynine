@@ -799,6 +799,9 @@ body {
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .nn-fade { opacity: 0; transform: translateY(20px); transition: all .7s cubic-bezier(.22,1,.36,1); }
 .nn-fade.vis { opacity: 1; transform: translateY(0); }
+.nn-scroll-hint{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:48px;opacity:0;animation:fadeIn 1s ease 1.4s forwards;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--taupe);width:100%}
+.nn-scroll-line{width:1px;height:40px;background:linear-gradient(to bottom,transparent,var(--taupe));animation:scrollLine 2s ease-in-out 1.8s infinite;flex-shrink:0}
+@keyframes scrollLine{0%,100%{opacity:.4;transform:scaleY(1)}50%{opacity:1;transform:scaleY(1.2)}}
 
 /* ═══════════════════════════════════
    TABLET  ≥ 640px
@@ -826,9 +829,6 @@ body {
     list-style: none;
     align-items: center;
   }
-  .nn-scroll-hint{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:48px;opacity:0;animation:fadeIn 1s ease 1.4s forwards;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--taupe);width:100%}
-.nn-scroll-line{width:1px;height:40px;background:linear-gradient(to bottom,transparent,var(--taupe));animation:scrollLine 2s ease-in-out 1.8s infinite;flex-shrink:0}
-@keyframes scrollLine{0%,100%{opacity:.4;transform:scaleY(1)}50%{opacity:1;transform:scaleY(1.2)}}
   .nn-nav-links li a {
     text-decoration: none;
     color: var(--charcoal);
