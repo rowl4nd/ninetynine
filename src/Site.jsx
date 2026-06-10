@@ -73,12 +73,18 @@ function Hero({ onBook }) {
       </div>
       <p className="nn-hero-address">99 Banks Road · West Kirby</p>
       <div className="nn-hero-cta">
-        <button className="nn-btn nn-btn-dark" onClick={onBook}>Book Appointment</button>
-        <a className="nn-btn nn-btn-outline" href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
-          Follow Us
-        </a>
-      </div>
+  <button className="nn-btn nn-btn-dark" onClick={onBook}>Book Appointment</button>
+  <a className="nn-btn nn-btn-outline" href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
+    Follow Us
+  </a>
+</div>
+<div className="nn-scroll-hint">
+  <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="22" height="34" rx="11" stroke="var(--taupe)" strokeWidth="1.5"/>
+    <circle cx="12" cy="10" r="3" fill="var(--taupe)" className="nn-scroll-dot"/>
+  </svg>
+</div>
     </section>
   );
 }
