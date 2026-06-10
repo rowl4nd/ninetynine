@@ -80,10 +80,8 @@ function Hero({ onBook }) {
   </a>
 </div>
 <div className="nn-scroll-hint">
-  <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="1" width="22" height="34" rx="11" stroke="var(--taupe)" strokeWidth="1.5"/>
-    <circle cx="12" cy="10" r="3" fill="var(--taupe)" className="nn-scroll-dot"/>
-  </svg>
+  <div className="nn-scroll-line"/>
+  <span>scroll</span>
 </div>
     </section>
   );
