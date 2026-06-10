@@ -584,19 +584,35 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   }, [prac]);
 
   const [availability, setAvailability] = useState([]);
+  const [blockedDays, setBlockedDays] = useState([]);
   useEffect(() => {
-    if (!prac) { setAvailability([]); return; }
+    if (!prac) { setAvailability([]); setBlockedDays([]); return; }
     if (IS_DEMO) {
       setAvailability([0,1,2,3,4,5].map(d => ({ day_of_week: d, is_available: true })));
+      setBlockedDays([]);
       return;
     }
-    supabase.query("availability", {
-      filters: "&practitioner_id=eq." + prac.id + "&is_available=eq.false",
-    }).then(rows => setAvailability(rows)).catch(() => setAvailability([]));
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      supabase.query("availability", {
+        filters: "&practitioner_id=eq." + prac.id + "&is_available=eq.false",
+      }),
+      supabase.query("blocked_dates", {
+        select: "blocked_date",
+        filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + today + "&start_time=is.null",
+      }),
+    ]).then(([avail, blocked]) => {
+      setAvailability(avail);
+      setBlockedDays(blocked.map(b => b.blocked_date));
+    }).catch(() => { setAvailability([]); setBlockedDays([]); });
   }, [prac]);
 
-  const unavailableDays = new Set(availability.map(r => r.day_of_week === 6 ? 0 : r.day_of_week + 1));
-
+const unavailableDays = new Set(availability.map(r => {
+    // Schema: 0=Mon,1=Tue,2=Wed,3=Thu,4=Fri,5=Sat,6=Sun
+    // JS getDay(): 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+    const jsDay = [1,2,3,4,5,6,0][r.day_of_week];
+    return jsDay;
+  }));
   const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
   const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
@@ -618,7 +634,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
       const dt = new Date(cY, cM, d);
       if (dt < new Date(today.getFullYear(), today.getMonth(), today.getDate())) continue;
       if (dt > maxDate) continue;
-      if (dt.getDay() === 0) continue;
       if (unavailableDays.has(dt.getDay())) continue;
       days.push(d);
     }
@@ -851,19 +866,21 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
                     const beyondWindow = dt > maxDate;
                     const jsDay = dt.getDay();
                     const unavail = unavailableDays.has(jsDay);
+                    const blocked = blockedDays.includes(dateStr(cY, cM, d));
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     const ds = dateStr(cY, cM, d);
                     const count = slotCounts[ds];
-                    const dotColor = past || beyondWindow || jsDay === 0 || unavail ? null
+                    const disabled = past || beyondWindow || unavail || blocked;
+                    const dotColor = disabled ? null
                       : count === undefined ? null
                       : count === 0 ? "var(--red)"
                       : count <= 3 ? "#C9963E"
                       : "var(--green)";
                     cells.push(
                       <button key={d}
-                        className={"nn-cal-day" + (sel ? " on" : "") + (past || beyondWindow || jsDay === 0 || unavail ? " off" : "") + (isNow ? " now" : "")}
-                        onClick={() => { if (!past && !beyondWindow && jsDay !== 0 && !unavail) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
-                        disabled={past || beyondWindow || jsDay === 0 || unavail}>
+                        className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
+                        onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
+                        disabled={disabled}>
                         {d}
                         {dotColor && <span style={{ display: "block", width: 5, height: 5, borderRadius: "50%", background: dotColor, margin: "2px auto 0" }} />}
                       </button>
