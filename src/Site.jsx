@@ -658,7 +658,7 @@ const unavailableDays = new Set(availability.map(r => {
 
   function handleSelectService(s) {
     setSvc(s); setAddon(null);
-    if (s.addon) { setStep(3); } else { setStep(dateStep); }
+    setStep(3);
   }
 
   async function handleConfirm() {
