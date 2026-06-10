@@ -766,6 +766,11 @@ export default function Dashboard({ onBack }) {
   const [newBlockEnd, setNewBlockEnd] = useState("");
   const [blockType, setBlockType] = useState("full");
   const [blockSaving, setBlockSaving] = useState(false);
+const [dateOverrides, setDateOverrides] = useState([]);
+const [newOverrideDate, setNewOverrideDate] = useState("");
+const [newOverrideStart, setNewOverrideStart] = useState("");
+const [newOverrideEnd, setNewOverrideEnd] = useState("");
+const [overrideSaving, setOverrideSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
   const [stripeConnecting, setStripeConnecting] = useState(false);
@@ -966,17 +971,18 @@ export default function Dashboard({ onBack }) {
   const existingGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
 
   useEffect(() => {
-    if (!auth || !prac || tab !== "schedule" || availability.length > 0) return;
+    if (!auth || !prac || tab !== "schedule") return;
     if (IS_DEMO) {
-      setAvailability(DAY_NAMES.map((_, i) => ({ day_of_week: i, start_time: "09:00", end_time: i < 5 ? "17:30" : "17:00", is_available: i < 6, break_start: null, break_duration: null })));
-      setBlockedDates([]); return;
+      setAvailability(DAY_NAMES.map((_,i) => ({ day_of_week:i, start_time:"09:00", end_time:i<5?"17:30":"17:00", is_available:i<6 })));
+      setBlockedDates([]); setDateOverrides([]); return;
     }
     Promise.all([
-      supabase.query("availability", { filters: "&practitioner_id=eq." + prac.id + "&order=day_of_week", token: auth.access_token }),
-      supabase.query("blocked_dates", { filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + new Date().toISOString().split("T")[0] + "&order=blocked_date", token: auth.access_token }),
-    ]).then(([avail, blocked]) => {
-      const filled = DAY_NAMES.map((_, i) => avail.find(a => a.day_of_week === i) || { day_of_week: i, start_time: "09:00", end_time: "17:30", is_available: false, break_start: null, break_duration: null });
-      setAvailability(filled); setBlockedDates(blocked);
+      supabase.query("availability", { filters:"&practitioner_id=eq."+prac.id+"&order=day_of_week", token:auth.access_token }),
+      supabase.query("blocked_dates", { filters:"&practitioner_id=eq."+prac.id+"&blocked_date=gte."+new Date().toISOString().split("T")[0]+"&order=blocked_date", token:auth.access_token }),
+      supabase.query("date_overrides", { filters:"&practitioner_id=eq."+prac.id+"&override_date=gte."+new Date().toISOString().split("T")[0]+"&order=override_date", token:auth.access_token }),
+    ]).then(([avail, blocked, overrides]) => {
+      const filled = DAY_NAMES.map((_,i) => avail.find(a => a.day_of_week===i) || { day_of_week:i, start_time:"09:00", end_time:"17:30", is_available:false });
+      setAvailability(filled); setBlockedDates(blocked); setDateOverrides(overrides);
     }).catch(console.error);
   }, [auth, prac, tab]);
 
@@ -1316,8 +1322,70 @@ break_duration: row.break_start ? (parseInt(row.break_duration) || 60) : null,  
           </div>
 
           {/* ── Blocked Dates ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Blocked Dates
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Custom Hours
+          </div>
+          <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:20, lineHeight:1.7 }}>Override your usual hours for a specific date — useful after a holiday or for an unusually long day.</p>
+          <div style={{ marginBottom:24 }}>
+            <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end" }}>
+              <div style={{ flex:"1 1 160px" }}>
+                <label style={{ fontSize:11, color:"var(--warm-gray)", letterSpacing:"1px", textTransform:"uppercase", display:"block", marginBottom:6 }}>Date</label>
+                <input type="date" value={newOverrideDate} onChange={e => setNewOverrideDate(e.target.value)} min={new Date().toISOString().split("T")[0]}
+                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}/>
+              </div>
+              <div style={{ flex:"0 1 130px" }}>
+                <label style={{ fontSize:11, color:"var(--warm-gray)", letterSpacing:"1px", textTransform:"uppercase", display:"block", marginBottom:6 }}>From</label>
+                <input type="time" value={newOverrideStart} onChange={e => setNewOverrideStart(e.target.value)}
+                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}/>
+              </div>
+              <div style={{ flex:"0 1 130px" }}>
+                <label style={{ fontSize:11, color:"var(--warm-gray)", letterSpacing:"1px", textTransform:"uppercase", display:"block", marginBottom:6 }}>Until</label>
+                <input type="time" value={newOverrideEnd} onChange={e => setNewOverrideEnd(e.target.value)}
+                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid var(--border)", background:"var(--warm-white)", fontFamily:"'Outfit',sans-serif", fontSize:14, outline:"none" }}/>
+              </div>
+              <button onClick={async () => {
+                if (!newOverrideDate || !newOverrideStart || !newOverrideEnd) return;
+                if (newOverrideStart >= newOverrideEnd) { alert("End time must be after start time."); return; }
+                setOverrideSaving(true);
+                try {
+                  const res = await supabase.insert("date_overrides", {
+                    practitioner_id: prac.id,
+                    override_date: newOverrideDate,
+                    start_time: newOverrideStart,
+                    end_time: newOverrideEnd,
+                  }, auth.access_token);
+                  setDateOverrides(prev => [...prev, res[0]].sort((a,b) => a.override_date.localeCompare(b.override_date)));
+                  setNewOverrideDate(""); setNewOverrideStart(""); setNewOverrideEnd("");
+                } catch(e) { console.error(e); alert("Error saving. That date may already have an override."); }
+                setOverrideSaving(false);
+              }} disabled={!newOverrideDate||!newOverrideStart||!newOverrideEnd||overrideSaving}
+                style={{ padding:"12px 28px", background:"var(--charcoal)", color:"var(--cream)", border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:500, letterSpacing:"2px", textTransform:"uppercase", opacity:newOverrideDate&&newOverrideStart&&newOverrideEnd&&!overrideSaving?1:.35, alignSelf:"flex-end" }}>
+                Save
+              </button>
+            </div>
+          </div>
+          {dateOverrides.length === 0 ? (
+            <div style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, padding:"20px 0", marginBottom:16 }}>No custom hours set.</div>
+          ) : (
+            <div style={{ marginBottom:32 }}>
+              {dateOverrides.map(o => (
+                <div key={o.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px", background:"var(--warm-white)", border:"1.5px solid var(--border)", marginBottom:8 }}>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:500 }}>{new Date(o.override_date+"T12:00:00").toLocaleDateString("en-GB",{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}</div>
+                    <div style={{ fontSize:12, color:"var(--gold)", fontWeight:300, marginTop:2 }}>{o.start_time.slice(0,5)} – {o.end_time.slice(0,5)}</div>
+                  </div>
+                  <button onClick={async () => {
+                    try {
+                      await fetch(SUPABASE_URL+"/rest/v1/date_overrides?id=eq."+o.id, { method:"DELETE", headers:supabase.headers(auth.access_token) });
+                      setDateOverrides(prev => prev.filter(x => x.id !== o.id));
+                    } catch(e) { console.error(e); }
+                  }} style={{ padding:"6px 14px", background:"none", color:"var(--red)", border:"1px solid var(--red)", cursor:"pointer", fontSize:11, fontWeight:600, letterSpacing:.5, textTransform:"uppercase", fontFamily:"'Outfit',sans-serif" }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Blocked Dates
           </div>
           <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>Block a full day off, or just specific hours within a day.</p>
           <div style={{ marginBottom: 24 }}>
