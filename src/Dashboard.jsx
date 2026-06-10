@@ -995,7 +995,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
         start_time: row.start_time,
         end_time: row.end_time,
         break_start: row.break_start || null,
-break_duration: row.break_start ? (parseInt(row.break_duration) || 60) : null,      };
+break_duration: row.break_start ? (parseInt(row.break_duration) || null) : null,      };
       await fetch(SUPABASE_URL + "/rest/v1/availability?practitioner_id=eq." + prac.id + "&day_of_week=eq." + day, {
         method: "PATCH",
         headers: { ...supabase.headers(auth.access_token), Prefer: "return=representation" },
@@ -1270,11 +1270,11 @@ break_duration: row.break_start ? (parseInt(row.break_duration) || 60) : null,  
                   <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>Break</span>
                   <input type="time" value={row.break_start || ""} placeholder="--:--"
                     onChange={e => updateAvail(i, "break_start", e.target.value || null)}
-                    onBlur={() => saveAvailability(i)}
+onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
                     style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", width: 90 }} />
                   <span style={{ fontSize: 11, color: "var(--warm-gray)", flexShrink: 0 }}>for</span>
-                  <select value={row.break_duration || "60"}
-  onChange={e => { updateAvail(i, "break_duration", e.target.value ? parseInt(e.target.value) : null); setTimeout(() => saveAvailability(i), 100); }}
+                  <select value={row.break_duration ?? ""}
+  onChange={e => { const newDuration = e.target.value ? parseInt(e.target.value) : null; updateAvail(i, "break_duration", newDuration); saveAvailability(i, { break_duration: newDuration }); }}
                     style={{ padding: "5px 8px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
                     <option value="">No break</option>
                     <option value="30">30 min</option>
