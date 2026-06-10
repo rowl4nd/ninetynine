@@ -940,13 +940,13 @@ export default function Dashboard({ onBack }) {
   }
 
   async function rescheduleBooking(bookingId, newDate, newTime) {
-    if (IS_DEMO) {
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
-      return;
-    }
-    await supabase.update("bookings", { booking_date: newDate, booking_time: newTime }, "id=eq." + bookingId, auth.access_token);
+  if (IS_DEMO) {
     setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
+    return;
   }
+  await supabase.update("bookings", { booking_date: newDate, booking_time: newTime, reminder_sent: false }, "id=eq." + bookingId, auth.access_token);
+  setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
+}
 
   useEffect(() => {
     if (!auth || !prac || tab !== "services") return;
