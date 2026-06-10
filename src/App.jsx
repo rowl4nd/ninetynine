@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import "./App.css";
 import { IS_DEMO } from "./supabase.js";
-import Site, { CancelPage, WaitlistBookPage } from "./Site.jsx";
+import Site, { CancelPage, WaitlistBookPage, ClientPortal } from "./Site.jsx";
 import Dashboard from "./Dashboard.jsx";
 
 const PREVIEW_PASS = import.meta.env.VITE_PREVIEW_PASS;
@@ -63,7 +63,11 @@ export default function App() {
   // Token-based pages bypass the gate
   if (isCancelPage) return <CancelPage token={cancelToken} />;
   if (isWaitlistPage) return <WaitlistBookPage token={params.get("token")} />;
-  if (isPortalPage) return <Site onDash={() => setPage("dashboard")} />;
+  if (isPortalPage) {
+  const portalEmail = params.get("email");
+  const portalToken = params.get("t");
+  return <ClientPortal email={portalEmail} token={portalToken} />;
+}
 
   if (!unlocked) return <PreviewGate onUnlock={() => setUnlocked(true)} />;
 
