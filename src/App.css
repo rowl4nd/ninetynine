@@ -826,6 +826,9 @@ body {
     list-style: none;
     align-items: center;
   }
+  .nn-scroll-hint{margin-top:40px;opacity:0;animation:fadeIn 1s ease 1.4s forwards}
+.nn-scroll-dot{animation:scrollDot 2s ease-in-out 1.8s infinite}
+@keyframes scrollDot{0%,100%{transform:translateY(0)}50%{transform:translateY(12px)}}
   .nn-nav-links li a {
     text-decoration: none;
     color: var(--charcoal);
