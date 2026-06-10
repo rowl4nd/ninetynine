@@ -26,11 +26,11 @@ export const DEMO_SERVICES_LIST = [
 export const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30"];
 
 export const TREATMENT_CATEGORIES = [
-  { id: "manicures", title: "Manicures", icon: "✦", description: "Gel Manicures, Builder Gel & Nail Art!", practitioners: ["Kristen", "Inke", "Melissa"] },
-  { id: "pedicures", title: "Pedicures", icon: "✦", description: "Gel Toes & Toenail Reconstruction!", practitioners: ["Holly", "Melissa"] },
-  { id: "brows", title: "Brows", icon: "✦", description: "Lamination, Wax & Tint!", practitioners: ["Lisa"] },
-  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash Lifts, Tints!", practitioners: ["Inke", "Lisa"] },
-  { id: "facials", title: "Facials", icon: "✦", description: "Express & Luxury Facials!", practitioners: ["Lisa"] },
+  { id: "manicures", title: "Manicures", icon: "✦", description: "Gel Manicures, Builder Gel & Nail Art", practitioners: ["Kristen", "Inke", "Melissa"] },
+  { id: "pedicures", title: "Pedicures", icon: "✦", description: "Gel Toes & Toenail Reconstruction", practitioners: ["Holly", "Melissa"] },
+  { id: "brows", title: "Brows", icon: "✦", description: "Lamination, Wax & Tint", practitioners: ["Lisa"] },
+  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash Lifts, Tints", practitioners: ["Inke", "Lisa"] },
+  { id: "facials", title: "Facials", icon: "✦", description: "Express & Luxury Facials", practitioners: ["Lisa"] },
 ];
 
 // ============================================================
