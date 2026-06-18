@@ -1327,6 +1327,13 @@ export function ClientPortal({ email, token }) {
         booking_time: editTime + ":00",
         rescheduled_by: "client",
       }, "id=eq." + editingBooking.id);
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/booking-rescheduled`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ booking_id: editingBooking.id, source: "client" }),
+        });
+      } catch (e) { console.error("Reschedule email failed:", e); }
       setEditingBooking(null);
       setEditDate(null);
       setEditTime(null);
