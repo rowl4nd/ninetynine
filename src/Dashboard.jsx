@@ -951,7 +951,13 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   }
   await supabase.update("bookings", { booking_date: newDate, booking_time: newTime, reminder_sent: false }, "id=eq." + bookingId, auth.access_token);
   setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, booking_date: newDate, booking_time: newTime } : b));
-}
+try {
+    await fetch(`${SUPABASE_URL}/functions/v1/booking-rescheduled`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ booking_id: bookingId, source: "staff" }),
+    });
+  } catch (e) { console.error("Reschedule email failed:", e); }
 
   useEffect(() => {
     if (!auth || !prac || tab !== "services") return;
