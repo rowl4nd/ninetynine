@@ -84,7 +84,11 @@ export function SvcItem({ s, picked, onSelect }) {
         <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
         {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
         <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
-        {s.addon && <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>+ {s.addon.title} available as add-on</div>}
+        {s.addons?.length > 0 && (
+          <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>
+            + {s.addons.map(a => a.title).join(", ")} available as add-on{s.addons.length > 1 ? "s" : ""}
+          </div>
+        )}
       </div>
       <div style={{ fontSize:17, fontWeight:600, color:"var(--gold)" }}>£{s.price}</div>
     </div>
