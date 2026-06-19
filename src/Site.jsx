@@ -945,7 +945,8 @@ const [availability, setAvailability] = useState([]);
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     const ds = dateStr(cY, cM, d);
                     const count = slotCounts[ds];
-                    const disabled = past || beyondWindow || unavail || blocked;
+                    const hasOverride = overrideDays.includes(ds);
+                    const disabled = past || beyondWindow || blocked || (unavail && !hasOverride);
                     const dotColor = disabled ? null
                       : count === undefined ? null
                       : count === 0 ? "var(--red)"
