@@ -943,7 +943,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
       select: "*,addon:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
-     }).then(rows => set...(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
+     }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
   }, [auth, prac, showStaffBooking]);
 
   function refreshBookings() {
@@ -1004,7 +1004,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
       select: "*,addon:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
-     }).then(rows => set...(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
+     }).then(rows => setCustomServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
   }
 
   const existingGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
