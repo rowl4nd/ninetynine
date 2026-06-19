@@ -586,13 +586,14 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     }).catch(() => setLoadingServices(false));
   }, [prac]);
 
-  const [availability, setAvailability] = useState([]);
+const [availability, setAvailability] = useState([]);
   const [blockedDays, setBlockedDays] = useState([]);
+  const [overrideDays, setOverrideDays] = useState([]);
   useEffect(() => {
-    if (!prac) { setAvailability([]); setBlockedDays([]); return; }
+    if (!prac) { setAvailability([]); setBlockedDays([]); setOverrideDays([]); return; }
     if (IS_DEMO) {
       setAvailability([0,1,2,3,4,5].map(d => ({ day_of_week: d, is_available: true })));
-      setBlockedDays([]);
+      setBlockedDays([]); setOverrideDays([]);
       return;
     }
     const today = new Date().toISOString().split("T")[0];
@@ -604,10 +605,15 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
         select: "blocked_date",
         filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + today + "&start_time=is.null",
       }),
-    ]).then(([avail, blocked]) => {
+      supabase.query("date_overrides", {
+        select: "override_date",
+        filters: "&practitioner_id=eq." + prac.id + "&override_date=gte." + today,
+      }),
+    ]).then(([avail, blocked, overrides]) => {
       setAvailability(avail);
       setBlockedDays(blocked.map(b => b.blocked_date));
-    }).catch(() => { setAvailability([]); setBlockedDays([]); });
+      setOverrideDays(overrides.map(o => o.override_date));
+    }).catch(() => { setAvailability([]); setBlockedDays([]); setOverrideDays([]); });
   }, [prac]);
 
   const unavailableDays = new Set(availability.map(r => [1,2,3,4,5,6,0][r.day_of_week]));
