@@ -21,12 +21,20 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
   const [groupName, setGroupName] = useState(existingService?.group_name || "");
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
-  const [hasAddon, setHasAddon] = useState(!!existingService?.addon);
-  const [addonTitle, setAddonTitle] = useState(existingService?.addon?.title || "");
-  const [addonDuration, setAddonDuration] = useState(existingService?.addon?.duration?.toString() || "15");
-  const [addonPrice, setAddonPrice] = useState(existingService?.addon?.price?.toString() || "");
+  const [addons, setAddons] = useState(
+    (existingService?.addons || []).map(a => ({
+      id: a.id,
+      title: a.title || "",
+      duration: a.duration?.toString() || "",
+      price: a.price?.toString() || "",
+    }))
+  );
   const [saving, setSaving] = useState(false);
   const finalGroupName = showNewGroup ? newGroupName : groupName;
+
+  function addAddon() { setAddons(prev => [...prev, { title: "", duration: "15", price: "" }]); }
+  function updateAddon(i, field, val) { setAddons(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: val } : a)); }
+  function removeAddon(i) { setAddons(prev => prev.filter((_, idx) => idx !== i)); }
 
   async function handleSave() {
     if (!title || !duration || !price) return;
@@ -44,21 +52,21 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
         }, token);
         serviceId = res[0].id;
       }
-      if (hasAddon && addonTitle && addonDuration && addonPrice) {
-        if (existingService?.addon) {
-          await supabase.update("custom_service_addons",
-            { title: addonTitle, duration: parseInt(addonDuration), price: parseFloat(addonPrice) },
-            "id=eq." + existingService.addon.id, token);
-        } else {
-          await supabase.insert("custom_service_addons", {
-            service_id: serviceId, title: addonTitle,
-            duration: parseInt(addonDuration), price: parseFloat(addonPrice),
-          }, token);
-        }
-      } else if (!hasAddon && existingService?.addon) {
-        await fetch(SUPABASE_URL + "/rest/v1/custom_service_addons?id=eq." + existingService.addon.id, {
+      // Replace all add-ons: wipe existing, then insert the current valid list.
+      // Add-on IDs aren't referenced anywhere persistent (bookings store service_title as text),
+      // so a clean replace is the simplest correct way to handle add/edit/remove together.
+      if (existingService) {
+        await fetch(SUPABASE_URL + "/rest/v1/custom_service_addons?service_id=eq." + serviceId, {
           method: "DELETE", headers: supabase.headers(token),
         });
+      }
+      const validAddons = addons.filter(a => a.title && a.duration && a.price);
+      if (validAddons.length > 0) {
+        await supabase.insert("custom_service_addons",
+          validAddons.map(a => ({
+            service_id: serviceId, title: a.title,
+            duration: parseInt(a.duration), price: parseFloat(a.price),
+          })), token);
       }
       onSave();
     } catch (e) { console.error(e); alert("Error saving service. Please try again."); }
@@ -101,26 +109,33 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
           <div style={{ flex: 1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45" /></div>
           <div style={{ flex: 1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="30" /></div>
         </div>
+
+        {/* Add-ons */}
         <div style={{ padding: "16px 20px", background: "var(--warm-white)", border: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: hasAddon ? 16 : 0 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>Optional add-on</div>
-              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>e.g. Nail Art, Brow Tint</div>
-            </div>
-            <button onClick={() => setHasAddon(o => !o)} style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: hasAddon ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
-              <span style={{ position: "absolute", top: 3, left: hasAddon ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
-            </button>
+          <div style={{ marginBottom: addons.length ? 16 : 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>Optional add-ons</div>
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>e.g. Nail Art, Brow Tint — clients can pick any of these</div>
           </div>
-          {hasAddon && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div><label className="nn-input-label">Add-on Title</label><input className="nn-input" type="text" value={addonTitle} onChange={e => setAddonTitle(e.target.value)} placeholder="e.g. Nail Art" /></div>
-              <div style={{ display: "flex", gap: 16 }}>
-                <div style={{ flex: 1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={addonDuration} onChange={e => setAddonDuration(e.target.value)} placeholder="15" /></div>
-                <div style={{ flex: 1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={addonPrice} onChange={e => setAddonPrice(e.target.value)} placeholder="10" /></div>
+          {addons.map((a, i) => (
+            <div key={a.id ?? i} style={{ padding: "14px 16px", background: "var(--cream)", border: "1px solid var(--border)", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)" }}>Add-on {i + 1}</div>
+                <button onClick={() => removeAddon(i)} style={{ padding: "4px 10px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>Remove</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div><label className="nn-input-label">Title</label><input className="nn-input" type="text" value={a.title} onChange={e => updateAddon(i, "title", e.target.value)} placeholder="e.g. Nail Art" /></div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div style={{ flex: 1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={a.duration} onChange={e => updateAddon(i, "duration", e.target.value)} placeholder="15" /></div>
+                  <div style={{ flex: 1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={a.price} onChange={e => updateAddon(i, "price", e.target.value)} placeholder="10" /></div>
+                </div>
               </div>
             </div>
-          )}
+          ))}
+          <button onClick={addAddon} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, color: "var(--charcoal)", width: "100%" }}>
+            <span style={{ fontSize: 16, color: "var(--gold)", lineHeight: 1 }}>+</span>{addons.length ? "Add another add-on" : "Add an add-on"}
+          </button>
         </div>
+
         <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
           <button onClick={onCancel} className="nn-btn-back">Cancel</button>
           <button onClick={handleSave} disabled={!title || !duration || !price || saving}
@@ -144,12 +159,12 @@ function ServiceCard({ svc, onEdit, onRemove }) {
         <div style={{ fontWeight: 500, fontSize: 14 }}>{svc.title}</div>
         {svc.description && <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{svc.description}</div>}
         <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 4 }}>{svc.duration} min · £{svc.price}</div>
-        {svc.addon && (
-          <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--cream)", border: "1px solid var(--border)", fontSize: 12 }}>
+        {svc.addons?.length > 0 && svc.addons.map(a => (
+          <div key={a.id} style={{ marginTop: 8, padding: "8px 12px", background: "var(--cream)", border: "1px solid var(--border)", fontSize: 12 }}>
             <span style={{ color: "var(--gold)", fontWeight: 500 }}>+ Add-on: </span>
-            {svc.addon.title} · {svc.addon.duration} min · £{svc.addon.price}
+            {a.title} · {a.duration} min · £{a.price}
           </div>
-        )}
+        ))}
       </div>
       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <button onClick={onEdit} style={{ padding: "6px 14px", background: "none", color: "var(--charcoal)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>Edit</button>
@@ -166,7 +181,7 @@ function ServiceCard({ svc, onEdit, onRemove }) {
 function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const [step, setStep] = useState(1);
   const [svc, setSvc] = useState(null);
-  const [addon, setAddon] = useState(null);
+  const [selectedAddons, setSelectedAddons] = useState([]);
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [clientName, setClientName] = useState("");
@@ -179,12 +194,20 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const [cM, setCM] = useState(now.getMonth());
   const [cY, setCY] = useState(now.getFullYear());
 
-  const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
-  const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
+  const addonsDuration = selectedAddons.reduce((sum, a) => sum + a.duration, 0);
+  const addonsPrice = selectedAddons.reduce((sum, a) => sum + a.price, 0);
+  const totalDuration = (svc?.duration || 0) + addonsDuration;
+  const totalPrice = (svc?.price || 0) + addonsPrice;
+  const addonTitles = selectedAddons.map(a => a.title).join(" + ");
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
 
   const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = services.filter(s => !s.group_name);
+
+  function pickService(s) { setSvc(s); setSelectedAddons([]); }
+  function toggleAddon(a) {
+    setSelectedAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
+  }
 
   async function handleSave() {
     if (!svc || !date || !time || !clientName || !phone) return;
@@ -194,7 +217,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
       await supabase.insert("bookings", {
         practitioner_id: prac.id,
         service_id: svc.id,
-        service_title: svc.title + (addon ? " + " + addon.title : ""),
+        service_title: svc.title + (selectedAddons.length ? " + " + addonTitles : ""),
         client_name: clientName,
         client_phone: phone,
         client_email: email,
@@ -203,7 +226,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         duration: totalDuration,
         price: totalPrice,
         booked_by: "staff",
-        notes: (addon ? "Add-on: " + addon.title + ". " : "") + (notes || ""),
+        notes: (selectedAddons.length ? "Add-ons: " + selectedAddons.map(a => a.title).join(", ") + ". " : "") + (notes || ""),
       }, token);
       setDone(true);
     } catch (e) { console.error(e); alert("Error creating booking. Please try again."); }
@@ -245,7 +268,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                 <div key={group} style={{ marginBottom: 24 }}>
                   <div className="nn-svc-group-label">{group}</div>
                   {services.filter(s => s.group_name === group).map(s => (
-                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => { setSvc(s); setAddon(null); }} />
+                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => pickService(s)} />
                   ))}
                 </div>
               ))}
@@ -253,18 +276,27 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                 <div>
                   {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
                   {ungrouped.map(s => (
-                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => { setSvc(s); setAddon(null); }} />
+                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => pickService(s)} />
                   ))}
                 </div>
               )}
             </div>
           )}
-          {svc?.addon && (
+          {svc?.addons?.length > 0 && (
             <div style={{ marginTop: 24, padding: "20px", background: "var(--cream)", border: "1.5px solid var(--border)" }}>
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Optional add-on</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setAddon(null)} style={{ flex: 1, padding: "12px", background: !addon ? "var(--charcoal)" : "var(--warm-white)", color: !addon ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (addon ? "var(--border)" : "var(--charcoal)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13 }}>No add-on</button>
-                <button onClick={() => setAddon(svc.addon)} style={{ flex: 1, padding: "12px", background: addon ? "var(--charcoal)" : "var(--warm-white)", color: addon ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (addon ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13 }}>{svc.addon.title} (+£{svc.addon.price})</button>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Optional add-ons</div>
+              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 12 }}>Tap any that apply.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {svc.addons.map(a => {
+                  const on = selectedAddons.some(x => x.id === a.id);
+                  return (
+                    <button key={a.id} onClick={() => toggleAddon(a)}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: on ? "var(--charcoal)" : "var(--warm-white)", color: on ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (on ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, textAlign: "left" }}>
+                      <span>{on ? "✓ " : ""}{a.title} <span style={{ opacity: .7, fontWeight: 300 }}>· {a.duration} min</span></span>
+                      <span style={{ fontWeight: 600, color: on ? "var(--cream)" : "var(--gold)" }}>+£{a.price}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -332,7 +364,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
           <div style={{ background: "var(--cream)", border: "1px solid var(--border)", padding: 32, marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
               <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>Service</span>
-              <span style={{ fontWeight: 500 }}>{svc?.title}{addon ? " + " + addon.title : ""}</span>
+              <span style={{ fontWeight: 500 }}>{svc?.title}{selectedAddons.length ? " + " + addonTitles : ""}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
               <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>Date &amp; Time</span>
@@ -911,7 +943,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
       select: "*,addon:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
-    }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })))).catch(console.error);
+     }).then(rows => set...(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
   }, [auth, prac, showStaffBooking]);
 
   function refreshBookings() {
@@ -972,7 +1004,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
       select: "*,addon:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
-    }).then(rows => setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })))).catch(console.error);
+     }).then(rows => set...(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
   }
 
   const existingGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
