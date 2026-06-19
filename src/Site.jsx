@@ -540,7 +540,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const [step, setStep] = useState(preselectedPrac ? 2 : 1);
   const [prac, setPrac] = useState(preselectedPrac || null);
   const [svc, setSvc] = useState(null);
-  const [addon, setAddon] = useState(null);
+  const [selectedAddons, setSelectedAddons] = useState([]);
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [done, setDone] = useState(false);
@@ -564,7 +564,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
 
   useEffect(() => {
     if (preselectedPrac) {
-      setPrac(preselectedPrac); setStep(2); setSvc(null); setAddon(null);
+      setPrac(preselectedPrac); setStep(2); setSvc(null); setSelectedAddons([]);
       setDate(null); setTime(null); setDone(false);
       if (onClearPreselect) onClearPreselect();
     }
@@ -575,10 +575,10 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     if (IS_DEMO) { setCustomServices(DEMO_SERVICES_LIST); return; }
     setLoadingServices(true);
     supabase.query("custom_services", {
-      select: "*,addon:custom_service_addons(*)",
+      select: "*,addons:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
     }).then(rows => {
-      setCustomServices(rows.map(s => ({ ...s, addon: s.addon?.[0] || null })));
+      setCustomServices(rows.map(s => ({ ...s, addons: s.addons || [] })));
       setLoadingServices(false);
     }).catch(() => setLoadingServices(false));
   }, [prac]);
@@ -607,45 +607,52 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     }).catch(() => { setAvailability([]); setBlockedDays([]); });
   }, [prac]);
 
-const unavailableDays = new Set(availability.map(r => {
-    // Schema: 0=Mon,1=Tue,2=Wed,3=Thu,4=Fri,5=Sat,6=Sun
-    // JS getDay(): 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  const unavailableDays = new Set(availability.map(r => {
     const jsDay = [1,2,3,4,5,6,0][r.day_of_week];
     return jsDay;
   }));
-  const totalDuration = (svc?.duration || 0) + (addon ? addon.duration : 0);
-  const totalPrice = (svc?.price || 0) + (addon ? addon.price : 0);
+
+  const hasAddons = svc?.addons?.length > 0;
+  const addonsDuration = selectedAddons.reduce((sum, a) => sum + a.duration, 0);
+  const addonsPrice = selectedAddons.reduce((sum, a) => sum + a.price, 0);
+  const totalDuration = (svc?.duration || 0) + addonsDuration;
+  const totalPrice = (svc?.price || 0) + addonsPrice;
+  const addonTitles = selectedAddons.map(a => a.title).join(" + ");
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
-  const dateStep = svc?.addon ? 4 : 3;
-  const confirmStep = svc?.addon ? 5 : 4;
-  const totalSteps = svc?.addon ? 5 : 4;
+  const dateStep = hasAddons ? 4 : 3;
+  const confirmStep = hasAddons ? 5 : 4;
+  const totalSteps = hasAddons ? 5 : 4;
 
   const bookingWindowWeeks = prac?.booking_window_weeks || 8;
   const maxDate = new Date();
   maxDate.setDate(maxDate.getDate() + bookingWindowWeeks * 7);
 
   const [slotCounts, setSlotCounts] = useState({});
-useEffect(() => {
-  if (!prac || step !== dateStep) { setSlotCounts({}); return; }
-  supabase.rpc("get_monthly_slot_counts", {
-    p_practitioner_id: prac.id,
-    p_year: cY,
-    p_month: cM + 1,
-    p_duration: totalDuration || 30,
-    p_interval: prac.slot_interval || 30,
-  }).then(rows => {
-    const map = {};
-    rows.forEach(r => { map[r.slot_date] = r.slot_count; });
-    setSlotCounts(map);
-  }).catch(() => setSlotCounts({}));
-}, [prac, cM, cY, step, totalDuration]);
+  useEffect(() => {
+    if (!prac || step !== dateStep) { setSlotCounts({}); return; }
+    supabase.rpc("get_monthly_slot_counts", {
+      p_practitioner_id: prac.id,
+      p_year: cY,
+      p_month: cM + 1,
+      p_duration: totalDuration || 30,
+      p_interval: prac.slot_interval || 30,
+    }).then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.slot_date] = r.slot_count; });
+      setSlotCounts(map);
+    }).catch(() => setSlotCounts({}));
+  }, [prac, cM, cY, step, totalDuration]);
 
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
   function handleSelectService(s) {
-    setSvc(s); setAddon(null);
+    setSvc(s); setSelectedAddons([]);
     setStep(3);
+  }
+
+  function toggleAddon(a) {
+    setSelectedAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
   }
 
   async function handleConfirm() {
@@ -653,9 +660,9 @@ useEffect(() => {
     if (IS_DEMO) { setDone(true); return; }
     setSaving(true);
     try {
-      const serviceTitle = svc.title + (addon ? " + " + addon.title : "");
+      const serviceTitle = svc.title + (selectedAddons.length ? " + " + addonTitles : "");
+      const notes = selectedAddons.length ? "Add-ons: " + selectedAddons.map(a => a.title).join(", ") : "";
 
-      // If deposits enabled — redirect to Stripe Checkout
       if (depositsEnabled) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
           method: "POST",
@@ -674,17 +681,15 @@ useEffect(() => {
             booking_time: time + ":00",
             duration: totalDuration,
             price: totalPrice,
-            notes: addon ? "Add-on: " + addon.title : "",
+            notes,
           }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        // Redirect to Stripe Checkout
         window.location.href = data.url;
         return;
       }
 
-      // No deposit — create booking directly
       await supabase.insert("bookings", {
         practitioner_id: prac.id,
         service_id: svc.id,
@@ -696,7 +701,7 @@ useEffect(() => {
         booking_time: time + ":00",
         duration: totalDuration,
         price: totalPrice,
-        notes: addon ? "Add-on: " + addon.title : "",
+        notes,
         deposit_paid: false,
       });
       setDone(true);
@@ -803,22 +808,33 @@ useEffect(() => {
         </div>
       )}
 
-      {step === 3 && svc?.addon && (
+      {step === 3 && hasAddons && (
         <div>
           <H3>Would you like to add anything?</H3>
           <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24, lineHeight: 1.7 }}>
-            Optional extra for your {svc.title} appointment.
+            Optional extras for your {svc.title} appointment. Tap any that apply.
           </p>
-          <div className={"nn-svc-item" + (addon === null ? " picked" : "")} onClick={() => { setAddon(null); setStep(dateStep); }} style={{ marginBottom: 8 }}>
-            <div><div style={{ fontWeight: 500 }}>No add-on</div><div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Just the {svc.title}</div></div>
-            <div style={{ fontSize: 13, color: "var(--warm-gray)" }}>—</div>
-          </div>
-          <div className={"nn-svc-item" + (addon?.id === svc.addon.id ? " picked" : "")} onClick={() => { setAddon(svc.addon); setStep(dateStep); }}>
-            <div><div style={{ fontWeight: 500 }}>{svc.addon.title}</div><div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{svc.addon.duration} min extra</div></div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--gold)" }}>+£{svc.addon.price}</div>
-          </div>
+          {svc.addons.map(a => {
+            const on = selectedAddons.some(x => x.id === a.id);
+            return (
+              <div key={a.id} className={"nn-svc-item" + (on ? " picked" : "")} onClick={() => toggleAddon(a)} style={{ marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{on ? "✓ " : ""}{a.title}</div>
+                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{a.duration} min extra</div>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "var(--gold)" }}>+£{a.price}</div>
+              </div>
+            );
+          })}
+          {selectedAddons.length > 0 && (
+            <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--cream)", border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+              <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>{selectedAddons.length} add-on{selectedAddons.length > 1 ? "s" : ""} · +{addonsDuration} min</span>
+              <span style={{ fontWeight: 600, color: "var(--gold)" }}>+£{addonsPrice}</span>
+            </div>
+          )}
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStep(dateStep)}>Continue</button>
           </div>
         </div>
       )}
@@ -885,15 +901,15 @@ useEffect(() => {
                 {slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
                 ) : slots.length === 0 ? (
-  <WaitlistJoin prac={prac} date={date} services={customServices} />
-) : (
+                  <WaitlistJoin prac={prac} date={date} services={customServices} />
+                ) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
               </div>
             )}
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(svc?.addon ? 3 : 2)}>Back</button>
+            <button className="nn-btn-back" onClick={() => setStep(hasAddons ? 3 : 2)}>Back</button>
             <button className="nn-btn nn-btn-dark" onClick={() => setStep(confirmStep)} disabled={!date || !time} style={{ opacity: date && time ? 1 : .35 }}>Continue</button>
           </div>
         </div>
@@ -905,7 +921,9 @@ useEffect(() => {
           <div className="nn-confirm">
             <div className="nn-confirm-row"><span className="nn-confirm-label">Practitioner</span><span className="nn-confirm-val">{prac?.name}</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Treatment</span><span className="nn-confirm-val">{svc?.title}</span></div>
-            {addon && <div className="nn-confirm-row"><span className="nn-confirm-label">Add-on</span><span className="nn-confirm-val">{addon.title}</span></div>}
+            {selectedAddons.map(a => (
+              <div className="nn-confirm-row" key={a.id}><span className="nn-confirm-label">Add-on</span><span className="nn-confirm-val">{a.title}</span></div>
+            ))}
             <div className="nn-confirm-row"><span className="nn-confirm-label">Date</span><span className="nn-confirm-val">{getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} {date.year}</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Time</span><span className="nn-confirm-val">{time}</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{totalDuration} min</span></div>
@@ -949,29 +967,29 @@ useEffect(() => {
               </div>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"16px 20px", background:"var(--cream)", border:"1.5px solid var(--border)" }}>
-  <input
-    type="checkbox"
-    id="terms"
-    checked={termsAccepted}
-    onChange={e => setTermsAccepted(e.target.checked)}
-    style={{ marginTop:3, accentColor:"var(--charcoal)", width:16, height:16, flexShrink:0, cursor:"pointer" }}
-  />
-  <label htmlFor="terms" style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.6, cursor:"pointer" }}>
-    I agree to the{" "}
-    <span
-      onClick={e => { e.preventDefault(); setShowPolicy(o => !o); }}
-      style={{ color:"var(--gold)", textDecoration:"underline", cursor:"pointer" }}
-    >
-      booking & cancellation policy
-    </span>
-    {" "}and consent to my details being stored to manage my appointment.
-    {showPolicy && (
-      <span style={{ display:"block", marginTop:12, padding:"14px 16px", background:"var(--warm-white)", border:"1px solid var(--border)", color:"var(--warm-gray)", fontSize:12, lineHeight:1.7 }}>
-        Cancellations made with less than 48 hours' notice may be subject to a charge at your practitioner's discretion. Your name, phone number and email address are stored solely for the purpose of managing your booking and will not be shared with third parties.
-      </span>
-    )}
-  </label>
-</div>
+              <input
+                type="checkbox"
+                id="terms"
+                checked={termsAccepted}
+                onChange={e => setTermsAccepted(e.target.checked)}
+                style={{ marginTop:3, accentColor:"var(--charcoal)", width:16, height:16, flexShrink:0, cursor:"pointer" }}
+              />
+              <label htmlFor="terms" style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, lineHeight:1.6, cursor:"pointer" }}>
+                I agree to the{" "}
+                <span
+                  onClick={e => { e.preventDefault(); setShowPolicy(o => !o); }}
+                  style={{ color:"var(--gold)", textDecoration:"underline", cursor:"pointer" }}
+                >
+                  booking & cancellation policy
+                </span>
+                {" "}and consent to my details being stored to manage my appointment.
+                {showPolicy && (
+                  <span style={{ display:"block", marginTop:12, padding:"14px 16px", background:"var(--warm-white)", border:"1px solid var(--border)", color:"var(--warm-gray)", fontSize:12, lineHeight:1.7 }}>
+                    Cancellations made with less than 48 hours' notice may be subject to a charge at your practitioner's discretion. Your name, phone number and email address are stored solely for the purpose of managing your booking and will not be shared with third parties.
+                  </span>
+                )}
+              </label>
+            </div>
             {depositsEnabled && (
               <div style={{ marginTop: 20, padding: "16px 20px", background: "var(--warm-white)", border: "1px solid var(--border)", fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6 }}>
                 A £{prac.deposit_amount} deposit is required to secure your appointment. You'll be taken to our secure payment page. Free cancellation up to 48 hours before your appointment.
