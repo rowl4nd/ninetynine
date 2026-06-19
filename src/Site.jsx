@@ -537,10 +537,13 @@ export function WaitlistBookPage({ token }) {
 // ============================================================
 
 function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerMode = false, onClose }) {
-  const [step, setStep] = useState(preselectedPrac ? 2 : 1);
+  // stage: "prac" | "service" | "addons" | "cart" | "date" | "confirm"
+  const [stage, setStage] = useState(preselectedPrac ? "service" : "prac");
   const [prac, setPrac] = useState(preselectedPrac || null);
-  const [svc, setSvc] = useState(null);
-  const [selectedAddons, setSelectedAddons] = useState([]);
+  const [cart, setCart] = useState([]);              // [{ uid, service, addons }]
+  const [draft, setDraft] = useState(null);          // service being configured before it's added
+  const [draftAddons, setDraftAddons] = useState([]);
+  const uidRef = useRef(0);
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [done, setDone] = useState(false);
@@ -556,7 +559,6 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const now = new Date();
   const [cM, setCM] = useState(now.getMonth());
   const [cY, setCY] = useState(now.getFullYear());
-  const labels = ["Practitioner", "Service", "Date & Time", "Confirm"];
 
   const emailValid = isValidEmail(email);
   const depositsEnabled = !IS_DEMO && prac?.deposits_enabled && prac?.stripe_account_id;
@@ -564,7 +566,8 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
 
   useEffect(() => {
     if (preselectedPrac) {
-      setPrac(preselectedPrac); setStep(2); setSvc(null); setSelectedAddons([]);
+      setPrac(preselectedPrac); setStage("service");
+      setCart([]); setDraft(null); setDraftAddons([]);
       setDate(null); setTime(null); setDone(false);
       if (onClearPreselect) onClearPreselect();
     }
@@ -607,21 +610,17 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     }).catch(() => { setAvailability([]); setBlockedDays([]); });
   }, [prac]);
 
-  const unavailableDays = new Set(availability.map(r => {
-    const jsDay = [1,2,3,4,5,6,0][r.day_of_week];
-    return jsDay;
-  }));
+  const unavailableDays = new Set(availability.map(r => [1,2,3,4,5,6,0][r.day_of_week]));
 
-  const hasAddons = svc?.addons?.length > 0;
-  const addonsDuration = selectedAddons.reduce((sum, a) => sum + a.duration, 0);
-  const addonsPrice = selectedAddons.reduce((sum, a) => sum + a.price, 0);
-  const totalDuration = (svc?.duration || 0) + addonsDuration;
-  const totalPrice = (svc?.price || 0) + addonsPrice;
-  const addonTitles = selectedAddons.map(a => a.title).join(" + ");
+  // Totals across the whole cart (each item = service + its add-ons)
+  const itemDuration = (it) => it.service.duration + it.addons.reduce((s, a) => s + a.duration, 0);
+  const itemPrice = (it) => it.service.price + it.addons.reduce((s, a) => s + a.price, 0);
+  const itemTitle = (it) => it.service.title + (it.addons.length ? " + " + it.addons.map(a => a.title).join(" + ") : "");
+  const totalDuration = cart.reduce((s, it) => s + itemDuration(it), 0);
+  const totalPrice = cart.reduce((s, it) => s + itemPrice(it), 0);
+  const serviceTitle = cart.map(itemTitle).join(" + ");
+
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
-  const dateStep = hasAddons ? 4 : 3;
-  const confirmStep = hasAddons ? 5 : 4;
-  const totalSteps = hasAddons ? 5 : 4;
 
   const bookingWindowWeeks = prac?.booking_window_weeks || 8;
   const maxDate = new Date();
@@ -629,7 +628,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
 
   const [slotCounts, setSlotCounts] = useState({});
   useEffect(() => {
-    if (!prac || step !== dateStep) { setSlotCounts({}); return; }
+    if (!prac || stage !== "date") { setSlotCounts({}); return; }
     supabase.rpc("get_monthly_slot_counts", {
       p_practitioner_id: prac.id,
       p_year: cY,
@@ -641,27 +640,51 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
       rows.forEach(r => { map[r.slot_date] = r.slot_count; });
       setSlotCounts(map);
     }).catch(() => setSlotCounts({}));
-  }, [prac, cM, cY, step, totalDuration]);
+  }, [prac, cM, cY, stage, totalDuration]);
 
   const groups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = customServices.filter(s => !s.group_name);
 
+  // Picking a service from the list → configure add-ons, or drop straight into the cart
   function handleSelectService(s) {
-    setSvc(s); setSelectedAddons([]);
-    setStep(3);
+    if (s.addons?.length > 0) {
+      setDraft(s); setDraftAddons([]); setStage("addons");
+    } else {
+      setCart(prev => [...prev, { uid: uidRef.current++, service: s, addons: [] }]);
+      setStage("cart");
+    }
   }
 
-  function toggleAddon(a) {
-    setSelectedAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
+  function toggleDraftAddon(a) {
+    setDraftAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
   }
+
+  function commitDraft() {
+    setCart(prev => [...prev, { uid: uidRef.current++, service: draft, addons: draftAddons }]);
+    setDraft(null); setDraftAddons([]);
+    setStage("cart");
+  }
+
+  function removeCartItem(uid) {
+    setCart(prev => {
+      const next = prev.filter(it => it.uid !== uid);
+      if (next.length === 0) setStage("service");
+      return next;
+    });
+    setDate(null); setTime(null);
+  }
+
+  // Both timing & price depend on the cart, so any change to it invalidates a chosen slot
+  function goAddAnother() { setDate(null); setTime(null); setStage("service"); }
 
   async function handleConfirm() {
     if (!canConfirm) return;
     if (IS_DEMO) { setDone(true); return; }
     setSaving(true);
     try {
-      const serviceTitle = svc.title + (selectedAddons.length ? " + " + addonTitles : "");
-      const notes = selectedAddons.length ? "Add-ons: " + selectedAddons.map(a => a.title).join(", ") : "";
+      const allAddons = cart.flatMap(it => it.addons.map(a => a.title));
+      const notes = allAddons.length ? "Add-ons: " + allAddons.join(", ") : "";
+      const primaryServiceId = cart[0]?.service.id;
 
       if (depositsEnabled) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
@@ -672,7 +695,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
           },
           body: JSON.stringify({
             practitioner_id: prac.id,
-            service_id: svc.id,
+            service_id: primaryServiceId,
             service_title: serviceTitle,
             client_name: clientName.trim(),
             client_phone: phone.trim(),
@@ -692,7 +715,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
 
       await supabase.insert("bookings", {
         practitioner_id: prac.id,
-        service_id: svc.id,
+        service_id: primaryServiceId,
         service_title: serviceTitle,
         client_name: clientName.trim(),
         client_phone: phone.trim(),
@@ -716,22 +739,55 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: drawerMode ? 20 : 24, fontWeight: 400, marginBottom: 20 }}>{children}</h3>
   );
 
+  // Linear stage list for the progress indicator (addons is folded into "Service")
+  const stageOrder = ["prac", "service", "cart", "date", "confirm"];
+  const stageLabels = { prac: "Practitioner", service: "Service", cart: "Service", date: "Date & Time", confirm: "Confirm" };
+  const indicatorStage = stage === "addons" ? "service" : stage;
+  const stageIndex = stageOrder.indexOf(indicatorStage);
+
   const StepIndicator = () => drawerMode ? (
     <div className="nn-booking-drawer-step-indicator">
-      Step <span>{step}</span> of <span>{totalSteps}</span>
-      {labels[step - 1] && <> · {labels[step - 1]}</>}
+      Step <span>{Math.max(stageIndex, 0) + 1}</span> of <span>{stageOrder.length}</span>
+      {stageLabels[indicatorStage] && <> · {stageLabels[indicatorStage]}</>}
     </div>
   ) : (
     <div className="nn-steps">
-      {labels.map((l, i) => (
-        <React.Fragment key={i}>
+      {stageOrder.map((st, i) => (
+        <React.Fragment key={st}>
           {i > 0 && <div className="nn-step-line" />}
-          <div className={"nn-step" + (step === i + 1 ? " active" : "") + (step > i + 1 ? " done" : "")}>
-            <div className="nn-step-num">{step > i + 1 ? "✓" : i + 1}</div>
-            <span>{l}</span>
+          <div className={"nn-step" + (i === stageIndex ? " active" : "") + (i < stageIndex ? " done" : "")}>
+            <div className="nn-step-num">{i < stageIndex ? "✓" : i + 1}</div>
+            <span>{stageLabels[st]}</span>
           </div>
         </React.Fragment>
       ))}
+    </div>
+  );
+
+  // Running cart summary (shown on cart + date + confirm stages)
+  const CartSummary = ({ editable = false }) => (
+    <div style={{ background: "var(--cream)", border: "1.5px solid var(--border)", padding: "16px 20px", marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 12 }}>Your booking</div>
+      {cart.map(it => (
+        <div key={it.uid} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14, gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>{it.service.title}</div>
+            {it.addons.length > 0 && <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>+ {it.addons.map(a => a.title).join(", ")}</div>}
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{itemDuration(it)} min</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <span style={{ fontWeight: 600, color: "var(--gold)" }}>£{itemPrice(it)}</span>
+            {editable && (
+              <button onClick={() => removeCartItem(it.uid)} aria-label="Remove"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--warm-gray)", fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
+            )}
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, fontSize: 14 }}>
+        <span style={{ fontWeight: 500 }}>Total · {totalDuration} min</span>
+        <span style={{ fontWeight: 600, color: "var(--gold)" }}>£{totalPrice}</span>
+      </div>
     </div>
   );
 
@@ -761,12 +817,12 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
     <div>
       <StepIndicator />
 
-      {step === 1 && (
+      {stage === "prac" && (
         <div>
           <H3>Who would you like to see?</H3>
           <div className="nn-prac-grid">
             {practitioners.map(p => (
-              <div key={p.id} className={"nn-prac-card" + (prac?.id === p.id ? " picked" : "")} onClick={() => { setPrac(p); setStep(2); }}>
+              <div key={p.id} className={"nn-prac-card" + (prac?.id === p.id ? " picked" : "")} onClick={() => { setPrac(p); setStage("service"); }}>
                 {p.photo
                   ? <div className="nn-team-avatar" style={{ backgroundImage: "url(" + p.photo + ")", width: 44, height: 44, margin: "0 auto 10px" }} />
                   : <div className="nn-team-avatar" style={{ background: p.color, width: 44, height: 44, fontSize: 16, margin: "0 auto 10px" }}>{p.name[0]}</div>
@@ -779,9 +835,9 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
         </div>
       )}
 
-      {step === 2 && (
+      {stage === "service" && (
         <div>
-          <H3>{prac?.name}'s services</H3>
+          <H3>{cart.length > 0 ? "Add another service" : prac?.name + "'s services"}</H3>
           {loadingServices ? (
             <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading services...</div>
           ) : customServices.length === 0 ? (
@@ -791,33 +847,33 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
               {groups.map(group => (
                 <div key={group} style={{ marginBottom: 20 }}>
                   <div className="nn-svc-group-label">{group}</div>
-                  <ServiceGroup services={customServices.filter(s => s.group_name === group)} selectedId={svc?.id} onSelect={handleSelectService} />
+                  <ServiceGroup services={customServices.filter(s => s.group_name === group)} selectedId={null} onSelect={handleSelectService} />
                 </div>
               ))}
               {ungrouped.length > 0 && (
                 <div>
                   {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
-                  <ServiceGroup services={ungrouped} selectedId={svc?.id} onSelect={handleSelectService} />
+                  <ServiceGroup services={ungrouped} selectedId={null} onSelect={handleSelectService} />
                 </div>
               )}
             </div>
           )}
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
+            <button className="nn-btn-back" onClick={() => cart.length > 0 ? setStage("cart") : setStage("prac")}>Back</button>
           </div>
         </div>
       )}
 
-      {step === 3 && hasAddons && (
+      {stage === "addons" && draft && (
         <div>
           <H3>Would you like to add anything?</H3>
           <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24, lineHeight: 1.7 }}>
-            Optional extras for your {svc.title} appointment. Tap any that apply.
+            Optional extras for your {draft.title}. Tap any that apply.
           </p>
-          {svc.addons.map(a => {
-            const on = selectedAddons.some(x => x.id === a.id);
+          {draft.addons.map(a => {
+            const on = draftAddons.some(x => x.id === a.id);
             return (
-              <div key={a.id} className={"nn-svc-item" + (on ? " picked" : "")} onClick={() => toggleAddon(a)} style={{ marginBottom: 8 }}>
+              <div key={a.id} className={"nn-svc-item" + (on ? " picked" : "")} onClick={() => toggleDraftAddon(a)} style={{ marginBottom: 8 }}>
                 <div>
                   <div style={{ fontWeight: 500 }}>{on ? "✓ " : ""}{a.title}</div>
                   <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{a.duration} min extra</div>
@@ -826,22 +882,32 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
               </div>
             );
           })}
-          {selectedAddons.length > 0 && (
-            <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--cream)", border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-              <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>{selectedAddons.length} add-on{selectedAddons.length > 1 ? "s" : ""} · +{addonsDuration} min</span>
-              <span style={{ fontWeight: 600, color: "var(--gold)" }}>+£{addonsPrice}</span>
-            </div>
-          )}
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(dateStep)}>Continue</button>
+            <button className="nn-btn-back" onClick={() => { setDraft(null); setDraftAddons([]); setStage("service"); }}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={commitDraft}>Add to Booking</button>
           </div>
         </div>
       )}
 
-      {step === dateStep && (
+      {stage === "cart" && (
+        <div>
+          <H3>Your booking so far</H3>
+          <CartSummary editable />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button className="nn-btn nn-btn-outline" onClick={goAddAnother} style={{ width: "100%", justifyContent: "center" }}>
+              + Add another service
+            </button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStage("date")} disabled={cart.length === 0} style={{ width: "100%", opacity: cart.length ? 1 : .35 }}>
+              Continue to Date &amp; Time
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "date" && (
         <div>
           <H3>Pick a date &amp; time</H3>
+          <CartSummary />
           <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
             <div className="nn-cal">
               <div className="nn-cal-head">
@@ -909,20 +975,24 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
             )}
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(hasAddons ? 3 : 2)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(confirmStep)} disabled={!date || !time} style={{ opacity: date && time ? 1 : .35 }}>Continue</button>
+            <button className="nn-btn-back" onClick={() => setStage("cart")}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStage("confirm")} disabled={!date || !time} style={{ opacity: date && time ? 1 : .35 }}>Continue</button>
           </div>
         </div>
       )}
 
-      {step === confirmStep && (
+      {stage === "confirm" && (
         <div>
           <H3>Confirm your booking</H3>
           <div className="nn-confirm">
             <div className="nn-confirm-row"><span className="nn-confirm-label">Practitioner</span><span className="nn-confirm-val">{prac?.name}</span></div>
-            <div className="nn-confirm-row"><span className="nn-confirm-label">Treatment</span><span className="nn-confirm-val">{svc?.title}</span></div>
-            {selectedAddons.map(a => (
-              <div className="nn-confirm-row" key={a.id}><span className="nn-confirm-label">Add-on</span><span className="nn-confirm-val">{a.title}</span></div>
+            {cart.map(it => (
+              <React.Fragment key={it.uid}>
+                <div className="nn-confirm-row"><span className="nn-confirm-label">Treatment</span><span className="nn-confirm-val">{it.service.title}</span></div>
+                {it.addons.map(a => (
+                  <div className="nn-confirm-row" key={a.id}><span className="nn-confirm-label">Add-on</span><span className="nn-confirm-val">{a.title}</span></div>
+                ))}
+              </React.Fragment>
             ))}
             <div className="nn-confirm-row"><span className="nn-confirm-label">Date</span><span className="nn-confirm-val">{getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} {date.year}</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Time</span><span className="nn-confirm-val">{time}</span></div>
@@ -997,7 +1067,7 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
             )}
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(dateStep)}>Back</button>
+            <button className="nn-btn-back" onClick={() => setStage("date")}>Back</button>
             <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!canConfirm} style={{ opacity: canConfirm ? 1 : .35 }}>
               {saving
                 ? (depositsEnabled ? "Redirecting to payment..." : "Booking...")
