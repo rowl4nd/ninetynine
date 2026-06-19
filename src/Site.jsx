@@ -1376,8 +1376,26 @@ export function ClientPortal({ email, token }) {
   const [rescheduling, setRescheduling] = useState(false);
 
   const { slots, loading: slotsLoading } = useAvailableSlots(
-    editingBooking?.practitioner_id, editDate, editingBooking?.duration, 30
+    editingBooking?.practitioner_id, editDate, editingBooking?.duration, editingBooking?.practitioner?.slot_interval || 30
   );
+
+  const [editAvail, setEditAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
+  useEffect(() => {
+    if (!editingBooking) { setEditAvail({ unavailable: new Set(), blocked: [], overrides: [] }); return; }
+    const pid = editingBooking.practitioner_id;
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      supabase.query("availability", { filters: "&practitioner_id=eq." + pid + "&is_available=eq.false" }),
+      supabase.query("blocked_dates", { select: "blocked_date", filters: "&practitioner_id=eq." + pid + "&blocked_date=gte." + today + "&start_time=is.null" }),
+      supabase.query("date_overrides", { select: "override_date", filters: "&practitioner_id=eq." + pid + "&override_date=gte." + today }),
+    ]).then(([avail, blocked, overrides]) => {
+      setEditAvail({
+        unavailable: new Set(avail.map(r => [1,2,3,4,5,6,0][r.day_of_week])),
+        blocked: blocked.map(b => b.blocked_date),
+        overrides: overrides.map(o => o.override_date),
+      });
+    }).catch(() => setEditAvail({ unavailable: new Set(), blocked: [], overrides: [] }));
+  }, [editingBooking]);
 
   useEffect(() => {
     if (!email || !token) { setStatus("invalid"); return; }
@@ -1556,13 +1574,17 @@ export function ClientPortal({ email, token }) {
                               const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
                               const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
                               const jsDay = new Date(cY, cM, d).getDay();
-                              const sun = jsDay === 0;
+                              const ds = dateStr(cY, cM, d);
+                              const unavail = editAvail.unavailable.has(jsDay);
+                              const blocked = editAvail.blocked.includes(ds);
+                              const hasOverride = editAvail.overrides.includes(ds);
+                              const disabled = past || blocked || (unavail && !hasOverride);
                               const sel = editDate && editDate.day === d && editDate.month === cM && editDate.year === cY;
                               cells.push(
                                 <button key={d}
-                                  className={"nn-cal-day" + (sel ? " on" : "") + (past || sun ? " off" : "") + (isNow ? " now" : "")}
-                                  onClick={() => { if (!past && !sun) { setEditDate({ day: d, month: cM, year: cY }); setEditTime(null); } }}
-                                  disabled={past || sun}>{d}</button>
+                                  className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
+                                  onClick={() => { if (!disabled) { setEditDate({ day: d, month: cM, year: cY }); setEditTime(null); } }}
+                                  disabled={disabled}>{d}</button>
                               );
                             }
                             return cells;
