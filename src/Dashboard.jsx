@@ -200,6 +200,22 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const totalPrice = (svc?.price || 0) + addonsPrice;
   const addonTitles = selectedAddons.map(a => a.title).join(" + ");
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+  const [bookAvail, setBookAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
+  useEffect(() => {
+    if (!prac || IS_DEMO) { setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }); return; }
+    const todayStr = new Date().toISOString().split("T")[0];
+    Promise.all([
+      supabase.query("availability", { filters: "&practitioner_id=eq." + prac.id + "&is_available=eq.false", token }),
+      supabase.query("blocked_dates", { select: "blocked_date", filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + todayStr + "&start_time=is.null", token }),
+      supabase.query("date_overrides", { select: "override_date", filters: "&practitioner_id=eq." + prac.id + "&override_date=gte." + todayStr, token }),
+    ]).then(([avail, blocked, overrides]) => {
+      setBookAvail({
+        unavailable: new Set(avail.map(r => [1,2,3,4,5,6,0][r.day_of_week])),
+        blocked: blocked.map(b => b.blocked_date),
+        overrides: overrides.map(o => o.override_date),
+      });
+    }).catch(() => setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }));
+  }, [prac, token]);
 
   const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = services.filter(s => !s.group_name);
@@ -327,10 +343,15 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                   for (let d = 1; d <= total; d++) {
                     const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
                     const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    const sun = new Date(cY, cM, d).getDay() === 0;
+                    const jsDay = new Date(cY, cM, d).getDay();
+                    const ds = dateStr(cY, cM, d);
+                    const unavail = bookAvail.unavailable.has(jsDay);
+                    const blocked = bookAvail.blocked.includes(ds);
+                    const hasOverride = bookAvail.overrides.includes(ds);
+                    const disabled = past || blocked || (unavail && !hasOverride);
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
-                    cells.push(<button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || sun ? " off" : "") + (isNow ? " now" : "")}
-                      onClick={() => { if (!past && !sun) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }} disabled={past || sun}>{d}</button>);
+                    cells.push(<button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
+                      onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }} disabled={disabled}>{d}</button>);
                   }
                   return cells;
                 })()}
@@ -845,6 +866,24 @@ const [overrideSaving, setOverrideSaving] = useState(false);
     restoreSession();
   }, []);
 
+  // Keep the access token fresh while the dashboard is open (tokens expire ~1hr)
+  useEffect(() => {
+    if (!auth?.refresh_token || IS_DEMO) return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(
+          import.meta.env.VITE_SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token",
+          { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }, body: JSON.stringify({ refresh_token: auth.refresh_token }) }
+        );
+        if (!res.ok) return;
+        const newSession = await res.json();
+        localStorage.setItem("nn_session", JSON.stringify({ session: newSession }));
+        setAuth(newSession);
+      } catch (e) { /* will retry on next tick */ }
+    }, 45 * 60 * 1000); // every 45 min, comfortably inside the ~60 min expiry
+    return () => clearInterval(id);
+  }, [auth?.refresh_token]);
+
   async function handleLogin(e) {
     e.preventDefault(); setLoginErr("");
     if (IS_DEMO) { setAuth({ access_token: "demo" }); setPrac(DEMO_PRACTITIONERS[0]); return; }
@@ -1097,8 +1136,7 @@ break_duration: row.break_start ? (parseInt(row.break_duration) || null) : null,
   const confirmedBookings = bookings.filter(b => b.status === "confirmed");
   const dashGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const dashUngrouped = customServices.filter(s => !s.group_name);
-  const stripeConnected = !!prac?.stripe_account_id;
-
+const stripeConnected = !!prac?.stripe_account_id;
   return (
     <div className="nn-dash">
       <div className="nn-dash-header">
