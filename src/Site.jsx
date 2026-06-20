@@ -890,7 +890,11 @@ const [availability, setAvailability] = useState([]);
           })}
           <div className="nn-booking-nav">
             <button className="nn-btn-back" onClick={() => { setDraft(null); setDraftAddons([]); setStage("service"); }}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={commitDraft}>Add to Booking</button>
+            <button className="nn-btn nn-btn-dark" onClick={commitDraft}>
+              {draftAddons.length === 0
+                ? "No extras, continue"
+                : `Add ${draftAddons.length} extra${draftAddons.length > 1 ? "s" : ""}`}
+            </button>
           </div>
         </div>
       )}
