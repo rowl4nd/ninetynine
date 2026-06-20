@@ -613,9 +613,9 @@ function BookingFlow({ practitioners, preselectedPrac, onClearPreselect, drawerM
   const [cY, setCY] = useState(now.getFullYear());
 
   const emailValid = isValidEmail(email);
-  const depositsEnabled = !IS_DEMO && prac?.deposits_enabled && prac?.stripe_account_id;
+  const depositsConfigured = !IS_DEMO && prac?.deposits_enabled && prac?.stripe_account_id;
   const canConfirm = clientName.trim() && phone.trim() && emailValid && termsAccepted && !saving;
-
+  
   useEffect(() => {
     if (preselectedPrac) {
       setPrac(preselectedPrac); setStage("service");
@@ -678,8 +678,15 @@ const [availability, setAvailability] = useState([]);
   const totalPrice = cart.reduce((s, it) => s + itemPrice(it), 0);
   const serviceTitle = cart.map(itemTitle).join(" + ");
 
-  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
 
+  // Deposit, computed identically to the Edge Function: over-threshold only, round up.
+  const depositPercent = prac?.deposit_percent ?? 20;
+  const depositThreshold = prac?.deposit_threshold ?? 10;
+  const depositAmount = depositsConfigured && totalPrice > depositThreshold
+    ? Math.ceil(totalPrice * depositPercent / 100)
+    : 0;
+  const depositDue = depositAmount > 0;
   const bookingWindowWeeks = prac?.booking_window_weeks || 8;
   const maxDate = new Date();
   maxDate.setDate(maxDate.getDate() + bookingWindowWeeks * 7);
@@ -744,7 +751,7 @@ const [availability, setAvailability] = useState([]);
       const notes = allAddons.length ? "Add-ons: " + allAddons.join(", ") : "";
       const primaryServiceId = cart[0]?.service.id;
 
-      if (depositsEnabled) {
+      if (depositDue) {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
           method: "POST",
           headers: {
@@ -767,8 +774,11 @@ const [availability, setAvailability] = useState([]);
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        window.location.href = data.url;
-        return;
+        // Safety net: if the server decided no deposit is due, fall through to a normal booking.
+        if (!data.skip) {
+          window.location.href = data.url;
+          return;
+        }
       }
 
       await supabase.insert("bookings", {
@@ -1070,10 +1080,10 @@ const [availability, setAvailability] = useState([]);
             <div className="nn-confirm-row"><span className="nn-confirm-label">Time</span><span className="nn-confirm-val">{time}</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Duration</span><span className="nn-confirm-val">{totalDuration} min</span></div>
             <div className="nn-confirm-row"><span className="nn-confirm-label">Price</span><span className="nn-confirm-val" style={{ color: "var(--gold)", fontWeight: 600 }}>£{totalPrice}</span></div>
-            {depositsEnabled && (
+            {depositDue && (
               <div className="nn-confirm-row">
                 <span className="nn-confirm-label">Deposit due now</span>
-                <span className="nn-confirm-val" style={{ color: "var(--gold)", fontWeight: 600 }}>£{prac.deposit_amount}</span>
+                <span className="nn-confirm-val" style={{ color: "var(--gold)", fontWeight: 600 }}>£{depositAmount}</span>
               </div>
             )}
             <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1132,9 +1142,9 @@ const [availability, setAvailability] = useState([]);
                 )}
               </label>
             </div>
-            {depositsEnabled && (
+            {depositDue && (
               <div style={{ marginTop: 20, padding: "16px 20px", background: "var(--warm-white)", border: "1px solid var(--border)", fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6 }}>
-                A £{prac.deposit_amount} deposit is required to secure your appointment. You'll be taken to our secure payment page. Free cancellation up to 48 hours before your appointment.
+                A £{depositAmount} deposit is required to secure your appointment. You'll be taken to our secure payment page. Free cancellation up to 48 hours before your appointment.
               </div>
             )}
           </div>
@@ -1142,9 +1152,9 @@ const [availability, setAvailability] = useState([]);
             <button className="nn-btn-back" onClick={() => setStage("date")}>Back</button>
             <button className="nn-btn nn-btn-gold" onClick={handleConfirm} disabled={!canConfirm} style={{ opacity: canConfirm ? 1 : .35 }}>
               {saving
-                ? (depositsEnabled ? "Redirecting to payment..." : "Booking...")
-                : depositsEnabled
-                  ? `Pay £${prac.deposit_amount} & Confirm`
+                ? (depositDue ? "Redirecting to payment..." : "Booking...")
+                : depositDue
+                  ? `Pay £${depositAmount} & Confirm`
                   : "Confirm Booking"
               }
             </button>
