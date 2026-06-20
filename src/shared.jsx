@@ -55,21 +55,26 @@ export function usePractitioners() {
   return data;
 }
 
-export function useAvailableSlots(pracId, date, duration, interval) {
+export function useAvailableSlots(pracId, date, duration, interval, minHours) {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!pracId || !date) { setSlots([]); return; }
     if (IS_DEMO) { setSlots(DEMO_TIMES); return; }
     setLoading(true);
-    supabase.rpc("get_available_slots", {
+    const params = {
       p_practitioner_id: pracId,
       p_date: dateStr(date.year, date.month, date.day),
       p_duration: duration || 30,
       p_interval: interval || 30,
-    }).then((rows) => { setSlots(rows.map((r) => r.slot_time.slice(0, 5))); setLoading(false); })
+    };
+    // Only send p_min_hours when explicitly overriding (e.g. staff/waitlist bypass with 0).
+    // Omitting it lets the RPC apply its own 18h default for normal client bookings.
+    if (minHours !== undefined && minHours !== null) params.p_min_hours = minHours;
+    supabase.rpc("get_available_slots", params)
+      .then((rows) => { setSlots(rows.map((r) => r.slot_time.slice(0, 5))); setLoading(false); })
       .catch((e) => { console.error(e); setSlots([]); setLoading(false); });
-  }, [pracId, date, duration]);
+  }, [pracId, date, duration, minHours]);
   return { slots, loading };
 }
 
