@@ -1115,7 +1115,8 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const [stripeConnecting, setStripeConnecting] = useState(false);
   const [depositSaving, setDepositSaving] = useState(false);
   const [statusRefreshing, setStatusRefreshing] = useState(false);
-  const [depositAmountInput, setDepositAmountInput] = useState("");
+  const [depositPercentInput, setDepositPercentInput] = useState("");
+  const [depositThresholdInput, setDepositThresholdInput] = useState("");
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   // Handle Stripe Connect return
@@ -1154,7 +1155,8 @@ useEffect(() => {
         const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + newSession.user.id, token: newSession.access_token });
         if (pracs.length > 0) {
           setPrac(pracs[0]);
-          setDepositAmountInput(String(pracs[0].deposit_amount || 10));
+          setDepositPercentInput(String(pracs[0].deposit_percent ?? 20));
+          setDepositThresholdInput(String(pracs[0].deposit_threshold ?? 10));
         } else localStorage.removeItem("nn_session");
       } catch (e) { localStorage.removeItem("nn_session"); }
     }
@@ -1188,7 +1190,8 @@ useEffect(() => {
       const pracs = await supabase.query("practitioners", { filters: "&user_id=eq." + session.user.id, token: session.access_token });
       if (pracs.length > 0) {
         setPrac(pracs[0]);
-        setDepositAmountInput(String(pracs[0].deposit_amount || 10));
+        setDepositPercentInput(String(pracs[0].deposit_percent ?? 20));
+        setDepositThresholdInput(String(pracs[0].deposit_threshold ?? 10));
         localStorage.setItem("nn_session", JSON.stringify({ session }));
       } else setLoginErr("No practitioner account linked to this email. Please contact Kristen.");
     } catch (e) { setLoginErr(e.message); }
@@ -1241,16 +1244,17 @@ useEffect(() => {
     setStatusRefreshing(false);
   }
 
-  async function saveDepositSettings(enabled, amount) {
+  async function saveDepositSettings(enabled, percent, threshold) {
     if (IS_DEMO) return;
     setDepositSaving(true);
     try {
-      const amt = parseInt(amount) || 10;
+      const pct = Math.min(100, Math.max(1, parseInt(percent) || 20));
+      const thr = Math.max(0, parseFloat(threshold) || 10);
       await supabase.update("practitioners",
-        { deposits_enabled: enabled, deposit_amount: amt },
+        { deposits_enabled: enabled, deposit_percent: pct, deposit_threshold: thr },
         "id=eq." + prac.id, auth.access_token
       );
-      setPrac(prev => ({ ...prev, deposits_enabled: enabled, deposit_amount: amt }));
+      setPrac(prev => ({ ...prev, deposits_enabled: enabled, deposit_percent: pct, deposit_threshold: thr }));
     } catch (e) { console.error(e); alert("Error saving deposit settings."); }
     setDepositSaving(false);
   }
@@ -1622,37 +1626,58 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Deposits
           </div>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
-            Require clients to pay a deposit when booking. Full refund if cancelled more than 48 hours before the appointment.
+            Require clients to pay a percentage deposit when booking. Deposits only apply to bookings over your minimum, and are deducted from the total on the day. Full refund if cancelled more than 48 hours before the appointment.
           </p>
           <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8, opacity: stripeConnected ? 1 : .45 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prac?.deposits_enabled ? 20 : 0 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Require deposit</div>
                 <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
-                  {stripeConnected ? "Clients pay this when booking" : "Connect Stripe above to enable deposits"}
+                  {stripeConnected ? "Clients pay a percentage when booking" : "Connect Stripe above to enable deposits"}
                 </div>
               </div>
               <button
                 disabled={!stripeConnected || depositSaving}
-                onClick={() => saveDepositSettings(!prac?.deposits_enabled, depositAmountInput)}
+                onClick={() => saveDepositSettings(!prac?.deposits_enabled, depositPercentInput, depositThresholdInput)}
                 style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: stripeConnected ? "pointer" : "not-allowed", background: prac?.deposits_enabled ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
                 <span style={{ position: "absolute", top: 3, left: prac?.deposits_enabled ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
               </button>
             </div>
             {prac?.deposits_enabled && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-                <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)" }}>Deposit amount</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>£</span>
-                  <input
-                    type="number" min="1" max="100"
-                    value={depositAmountInput}
-                    onChange={e => setDepositAmountInput(e.target.value)}
-                    onBlur={() => saveDepositSettings(true, depositAmountInput)}
-                    style={{ width: 56, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
-                  />
+              <div style={{ paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Deposit percentage</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
+                    <input
+                      type="number" min="1" max="100"
+                      value={depositPercentInput}
+                      onChange={e => setDepositPercentInput(e.target.value)}
+                      onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
+                      style={{ width: 44, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
+                    />
+                    <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>%</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>of the total</span>
                 </div>
-                <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>charged at booking</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Only on bookings over</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
+                    <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>£</span>
+                    <input
+                      type="number" min="0" max="500"
+                      value={depositThresholdInput}
+                      onChange={e => setDepositThresholdInput(e.target.value)}
+                      onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
+                      style={{ width: 56, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>no deposit below this</span>
+                </div>
+                {prac?.deposit_percent && (
+                  <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, lineHeight: 1.6 }}>
+                    e.g. a £50 booking would take a £{Math.ceil(50 * (parseInt(depositPercentInput) || 20) / 100)} deposit. Rounded up to the nearest pound.
+                  </div>
+                )}
                 {depositSaving && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Saving...</span>}
               </div>
             )}
