@@ -828,6 +828,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
   const [stripeConnecting, setStripeConnecting] = useState(false);
   const [depositSaving, setDepositSaving] = useState(false);
+  const [statusRefreshing, setStatusRefreshing] = useState(false);
   const [depositAmountInput, setDepositAmountInput] = useState("");
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -930,6 +931,28 @@ useEffect(() => {
       alert("Error connecting Stripe: " + e.message);
     }
     setStripeConnecting(false);
+  }
+
+  async function refreshStripeStatus() {
+    if (IS_DEMO) return;
+    setStatusRefreshing(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-account-status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ practitioner_id: prac.id }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPrac(prev => ({ ...prev, stripe_charges_enabled: data.charges_enabled }));
+    } catch (e) {
+      console.error(e);
+      alert("Couldn't refresh Stripe status. Please try again in a moment.");
+    }
+    setStatusRefreshing(false);
   }
 
   async function saveDepositSettings(enabled, amount) {
@@ -1259,6 +1282,28 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                   style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: stripeConnecting ? .5 : 1 }}>
                   {stripeConnecting ? "Loading..." : "Manage Account"}
                 </button>
+              </div>
+            ) : prac?.stripe_account_id ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#C9963E", flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>Setup incomplete</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
+                    Your Stripe account isn't ready to take payments yet. Finish onboarding, then refresh.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button onClick={refreshStripeStatus} disabled={statusRefreshing}
+                    style={{ padding: "12px 18px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: statusRefreshing ? .5 : 1 }}>
+                    {statusRefreshing ? "Checking..." : "Refresh"}
+                  </button>
+                  <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                    style={{ padding: "12px 18px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1 }}>
+                    {stripeConnecting ? "Loading..." : "Finish Setup"}
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
