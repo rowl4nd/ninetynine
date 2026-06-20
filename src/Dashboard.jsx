@@ -1111,7 +1111,8 @@ const [newOverrideEnd, setNewOverrideEnd] = useState("");
 const [overrideSaving, setOverrideSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
-  const [weekBlocks, setWeekBlocks] = useState([]);
+ const [weekBlocks, setWeekBlocks] = useState([]);
+  const [waitlist, setWaitlist] = useState([]);
   const [stripeConnecting, setStripeConnecting] = useState(false);
   const [depositSaving, setDepositSaving] = useState(false);
   const [statusRefreshing, setStatusRefreshing] = useState(false);
@@ -1302,6 +1303,11 @@ useEffect(() => {
       filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + todayStr + "&order=blocked_date",
       token: auth.access_token,
     }).then(setWeekBlocks).catch(console.error);
+    // Waiting clients for upcoming dates only (past dates are moot).
+    supabase.query("waitlist", {
+      filters: "&practitioner_id=eq." + prac.id + "&status=eq.waiting&waitlist_date=gte." + todayStr + "&order=waitlist_date,created_at",
+      token: auth.access_token,
+    }).then(setWaitlist).catch(console.error);
   }, [auth, prac, tab]);
 
   useEffect(() => {
@@ -1313,6 +1319,14 @@ useEffect(() => {
       token: auth.access_token,
      }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
   }, [auth, prac, showStaffBooking]);
+
+  async function removeWaitlistEntry(id) {
+    if (IS_DEMO) { setWaitlist(prev => prev.filter(w => w.id !== id)); return; }
+    try {
+      await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + id, { method: "DELETE", headers: supabase.headers(auth.access_token) });
+      setWaitlist(prev => prev.filter(w => w.id !== id));
+    } catch (e) { console.error(e); alert("Couldn't remove that entry. Please try again."); }
+  }
 
   function refreshBookings() {
     if (!auth || !prac || IS_DEMO) return;
@@ -1491,12 +1505,58 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
             <StaffBookingForm prac={prac} services={staffBookServices} token={auth.access_token}
               onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
               onCancel={() => setShowStaffBooking(false)} />
-          ) : (
-            <WeekView bookings={confirmedBookings} loading={loading} prac={prac} token={auth.access_token}
-              blocks={weekBlocks}
-              onAddBooking={() => setShowStaffBooking(true)}
-              onStatusChange={updateStatus}
-              onReschedule={rescheduleBooking} />
+         ) : (
+            <>
+              <WeekView bookings={confirmedBookings} loading={loading} prac={prac} token={auth.access_token}
+                blocks={weekBlocks}
+                onAddBooking={() => setShowStaffBooking(true)}
+                onStatusChange={updateStatus}
+                onReschedule={rescheduleBooking} />
+
+              {waitlist.length > 0 && (
+                <div style={{ marginTop: 40 }}>
+                  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 6, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />
+                    Waitlist
+                    <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, fontFamily: "'Outfit',sans-serif" }}>
+                      {waitlist.length} waiting
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 20 }}>
+                    Clients hoping for a slot on these dates. If a gap opens up, get in touch to fill it.
+                  </p>
+                  {(() => {
+                    const byDate = {};
+                    waitlist.forEach(w => { (byDate[w.waitlist_date] ||= []).push(w); });
+                    return Object.keys(byDate).sort().map(d => (
+                      <div key={d} style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10 }}>
+                          {new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                        </div>
+                        {byDate[d].map(w => (
+                          <div key={w.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, padding: "14px 18px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 14, fontWeight: 500 }}>{w.client_name}</div>
+                              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{w.service_title || "Any service"}{w.price ? " · £" + w.price : ""}</div>
+                              <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
+                                <a href={"tel:" + w.client_phone} style={{ fontSize: 13, color: "var(--gold)", textDecoration: "none", fontWeight: 500 }}>Call</a>
+                                <a href={"sms:" + w.client_phone} style={{ fontSize: 13, color: "var(--gold)", textDecoration: "none", fontWeight: 500 }}>Text</a>
+                                {w.client_email && <a href={"mailto:" + w.client_email} style={{ fontSize: 13, color: "var(--gold)", textDecoration: "none", fontWeight: 500 }}>Email</a>}
+                                <span style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>{w.client_phone}</span>
+                              </div>
+                            </div>
+                            <button onClick={() => { if (window.confirm("Remove " + w.client_name + " from the waitlist?")) removeWaitlistEntry(w.id); }}
+                              style={{ padding: "6px 14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif", flexShrink: 0 }}>
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
