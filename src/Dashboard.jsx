@@ -535,6 +535,14 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const [nowDayIdx, setNowDayIdx] = useState(null);
   const datePickerRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const [drag, setDrag] = useState(null);
+  const [dragConfirm, setDragConfirm] = useState(null);
+  const [dragSaving, setDragSaving] = useState(false);
+  const [invalidFlash, setInvalidFlash] = useState(null);
+  const longPressRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const armedRef = useRef(false);
+  const flashRef = useRef(null);
 
   function scrollToNow() {
     if (!scrollContainerRef.current) return;
@@ -635,6 +643,139 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
       alert("Error rescheduling. Please try again.");
     }
     setRescheduling(false);
+  }
+
+  // ── Drag-to-reschedule (long-press lift, same-day vertical move) ──
+  const interval = prac?.slot_interval || 30;
+
+  function timeToMins(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+  function minsToTime(mins) { return String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0"); }
+  function overlapsExisting(startMins, dur, others, dayBlocks) {
+    const end = startMins + dur;
+    for (const o of others) {
+      const os = timeToMins(o.booking_time);
+      const oe = os + (o.duration || 30);
+      if (startMins < oe && end > os) return true;
+    }
+    for (const blk of dayBlocks) {
+      if (!blk.start_time) return true;
+      const bs = timeToMins(blk.start_time);
+      const be = timeToMins(blk.end_time);
+      if (startMins < be && end > bs) return true;
+    }
+    return false;
+  }
+
+  // Block native scroll ONLY while a booking is actively lifted.
+  // Non-passive listener so preventDefault is honoured; armedRef gates it.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onTouchMove = (ev) => { if (armedRef.current) ev.preventDefault(); };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
+
+  function onChipPointerDown(e, b) {
+    if (e.button != null && e.button > 0) return;
+    const el = e.currentTarget;
+    const { top: originalTop } = bookingStyle(b);
+    const ds = b.booking_date;
+    const others = (bookingsByDate[ds] || []).filter(x => x.id !== b.id);
+    const dayBlocks = blocksByDate[ds] || [];
+    dragStateRef.current = {
+      booking: b, el, pointerId: e.pointerId,
+      startX: e.clientX, startY: e.clientY,
+      originalTop, others, dayBlocks,
+      moved: false, armed: false, live: null,
+    };
+    clearTimeout(longPressRef.current);
+    longPressRef.current = setTimeout(() => {
+      const st = dragStateRef.current;
+      if (!st || st.moved || st.booking.id !== b.id) return;
+      st.armed = true;
+      armedRef.current = true;
+      try { st.el.setPointerCapture(st.pointerId); } catch {}
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+      setDrag({ bookingId: b.id, top: originalTop, targetMins: timeToMins(b.booking_time), valid: true });
+    }, 400);
+  }
+
+  function onChipPointerMove(e, b) {
+    const st = dragStateRef.current;
+    if (!st || st.booking.id !== b.id) return;
+    const dy = e.clientY - st.startY;
+    const dx = e.clientX - st.startX;
+    if (!st.armed) {
+      // Moved before the long-press fired → it's a scroll, abort the lift.
+      if (Math.abs(dy) > 8 || Math.abs(dx) > 8) {
+        st.moved = true;
+        clearTimeout(longPressRef.current);
+      }
+      return;
+    }
+    const dur = st.booking.duration || 30;
+    const rawTop = st.originalTop + dy;
+    let mins = HOUR_START * 60 + Math.round((rawTop / SLOT_H * 30) / interval) * interval;
+    mins = Math.max(HOUR_START * 60, Math.min(HOUR_END * 60 - dur, mins));
+    const snappedTop = ((mins - HOUR_START * 60) / 30) * SLOT_H;
+    const valid = !overlapsExisting(mins, dur, st.others, st.dayBlocks);
+    st.live = { mins, valid };
+    setDrag({ bookingId: b.id, top: snappedTop, targetMins: mins, valid });
+  }
+
+  function onChipPointerUp(e, b) {
+    const st = dragStateRef.current;
+    clearTimeout(longPressRef.current);
+    if (!st) return;
+    try { st.el.releasePointerCapture(st.pointerId); } catch {}
+    if (!st.armed) {
+      // Tap (no lift, no scroll) → open the detail sheet, as before.
+      if (!st.moved) openSheet(b);
+      dragStateRef.current = null;
+      return;
+    }
+    armedRef.current = false;
+    const live = st.live;
+    dragStateRef.current = null;
+    setDrag(null);
+    if (!live) return;
+    const origMins = timeToMins(b.booking_time);
+    if (live.mins === origMins) return; // dropped where it started
+    if (!live.valid) {
+      setInvalidFlash("That overlaps another appointment");
+      clearTimeout(flashRef.current);
+      flashRef.current = setTimeout(() => setInvalidFlash(null), 1800);
+      return;
+    }
+    const newTime = minsToTime(live.mins);
+    setDragConfirm({
+      booking: b,
+      newDateStr: b.booking_date,
+      newTime,
+      pendingMins: live.mins,
+      label: new Date(b.booking_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) + " at " + newTime,
+    });
+  }
+
+  function onChipPointerCancel() {
+    clearTimeout(longPressRef.current);
+    armedRef.current = false;
+    dragStateRef.current = null;
+    setDrag(null);
+  }
+
+  async function confirmDragMove() {
+    if (!dragConfirm) return;
+    setDragSaving(true);
+    try {
+      await onReschedule(dragConfirm.booking.id, dragConfirm.newDateStr, dragConfirm.newTime + ":00");
+      setDragConfirm(null);
+    } catch (e) {
+      console.error(e);
+      alert("Error moving appointment. Please try again.");
+    }
+    setDragSaving(false);
   }
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -755,12 +896,29 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                       );
                     })}
                     {dayBookings.map(b => {
-                      const { top, height } = bookingStyle(b);
+                      const base = bookingStyle(b);
+                      const isDragging = drag?.bookingId === b.id;
+                      const isPending = dragConfirm?.booking.id === b.id;
+                      let top = base.top;
+                      if (isDragging) top = drag.top;
+                      else if (isPending) top = ((dragConfirm.pendingMins - HOUR_START * 60) / 30) * SLOT_H;
+                      const height = base.height;
+                      const lifted = isDragging || isPending;
+                      const valid = isDragging ? drag.valid : true;
                       return (
-                        <div key={b.id} onClick={() => openSheet(b)}
-                          style={{ position: "absolute", top, height, left: 2, right: 2, background: "var(--gold)", borderLeft: "3px solid var(--charcoal)", borderRadius: 2, padding: "3px 6px", cursor: "pointer", overflow: "hidden", zIndex: 2, transition: "filter .15s" }}
-                          onMouseEnter={e => e.currentTarget.style.filter = "brightness(.9)"}
+                        <div key={b.id}
+                          onPointerDown={e => onChipPointerDown(e, b)}
+                          onPointerMove={e => onChipPointerMove(e, b)}
+                          onPointerUp={e => onChipPointerUp(e, b)}
+                          onPointerCancel={onChipPointerCancel}
+                          style={{ position: "absolute", top, height, left: 2, right: 2, background: "var(--gold)", borderLeft: "3px solid var(--charcoal)", borderRadius: 2, padding: "3px 6px", cursor: "pointer", overflow: lifted ? "visible" : "hidden", zIndex: lifted ? 20 : 2, boxShadow: isDragging ? "0 8px 24px rgba(44,40,37,.35)" : (isPending ? "0 4px 14px rgba(44,40,37,.22)" : "none"), transform: isDragging ? "scale(1.03)" : "none", opacity: isDragging ? 0.92 : 1, outline: lifted ? (valid ? "2px solid var(--charcoal)" : "2px solid var(--red)") : "none", transition: isDragging ? "none" : "filter .15s", touchAction: "auto" }}
+                          onMouseEnter={e => { if (!lifted) e.currentTarget.style.filter = "brightness(.9)"; }}
                           onMouseLeave={e => e.currentTarget.style.filter = "none"}>
+                          {isDragging && (
+                            <div style={{ position: "absolute", top: -22, left: 0, background: drag.valid ? "var(--charcoal)" : "var(--red)", color: "var(--cream)", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 3, whiteSpace: "nowrap", letterSpacing: ".5px", zIndex: 21 }}>
+                              {minsToTime(drag.targetMins)}{!drag.valid ? "  ✕" : ""}
+                            </div>
+                          )}
                           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--charcoal)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.client_name}</div>
                           {height >= 44 && <div style={{ fontSize: 10, color: "rgba(44,40,37,.65)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>{b.service_title || b.service_name || "Service"}</div>}
                         </div>
@@ -772,6 +930,29 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
             </div>
           </div>
         </div>
+      )}
+
+      {invalidFlash && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "var(--red)", color: "#fff", fontSize: 13, fontWeight: 500, padding: "12px 20px", borderRadius: 4, zIndex: 500, boxShadow: "0 4px 16px rgba(0,0,0,.2)" }}>
+          {invalidFlash}
+        </div>
+      )}
+
+      {dragConfirm && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(44,40,37,.4)", zIndex: 400 }} onClick={() => setDragConfirm(null)} />
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--cream)", borderTop: "1px solid var(--border)", borderRadius: "12px 12px 0 0", zIndex: 401, padding: "0 24px 40px", animation: "sheetUp .3s cubic-bezier(.22,1,.36,1)" }}>
+            <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 2, margin: "14px auto 24px" }} />
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 300, marginBottom: 8 }}>Move appointment?</div>
+            <div style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 28 }}>
+              Move <strong style={{ color: "var(--charcoal)", fontWeight: 500 }}>{dragConfirm.booking.client_name}</strong> to <strong style={{ color: "var(--charcoal)", fontWeight: 500 }}>{dragConfirm.label}</strong>?
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setDragConfirm(null)} style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Keep</button>
+              <button onClick={confirmDragMove} disabled={dragSaving} style={{ flex: 2, padding: "14px", background: "var(--gold)", color: "var(--charcoal)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: dragSaving ? .5 : 1 }}>{dragSaving ? "Saving..." : "Confirm"}</button>
+            </div>
+          </div>
+        </>
       )}
 
       {sheet && (
