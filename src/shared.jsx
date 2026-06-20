@@ -1,7 +1,7 @@
 // src/shared.js — Shared data, utilities, hooks & components
 // Used by both Site.jsx and Dashboard.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, IS_DEMO } from "./supabase.js";
 
 // ============================================================
@@ -77,12 +77,44 @@ export function useAvailableSlots(pracId, date, duration, interval) {
 // SHARED COMPONENTS
 // ============================================================
 
+export function ClampedDescription({ text, lines = 4 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !expanded) setClamped(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div style={{ marginTop: 2 }}>
+      <div ref={ref} style={{
+        fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6,
+        whiteSpace: "pre-line",
+        display: "-webkit-box", WebkitBoxOrient: "vertical",
+        WebkitLineClamp: expanded ? "unset" : lines,
+        overflow: expanded ? "visible" : "hidden",
+      }}>
+        {text}
+      </div>
+      {(clamped || expanded) && (
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(o => !o); }}
+          style={{ marginTop: 4, background: "none", border: "none", padding: 0, cursor: "pointer",
+            fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, color: "var(--gold)" }}>
+          {expanded ? "− See less" : "+ See more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function SvcItem({ s, picked, onSelect }) {
   return (
     <div className={"nn-svc-item" + (picked ? " picked" : "")} onClick={() => onSelect(s)}>
       <div>
         <div style={{ fontWeight:500, marginBottom:3 }}>{s.title}</div>
-        {s.description && <div style={{ fontSize:12, color:"var(--warm-gray)", fontWeight:300, marginTop:2 }}>{s.description}</div>}
+{s.description && <ClampedDescription text={s.description} />}
         <div style={{ fontSize:13, color:"var(--warm-gray)", fontWeight:300, marginTop:4 }}>{s.duration} min</div>
         {s.addons?.length > 0 && (
           <div style={{ fontSize:11, color:"var(--gold)", marginTop:4 }}>
