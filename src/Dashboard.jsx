@@ -455,7 +455,7 @@ function fmtShortDate(date) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange, onReschedule }) {
+function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, onStatusChange, onReschedule }) {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [sheet, setSheet] = useState(null);
   const [sheetMode, setSheetMode] = useState("detail");
@@ -577,6 +577,11 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
     if (!bookingsByDate[b.booking_date]) bookingsByDate[b.booking_date] = [];
     bookingsByDate[b.booking_date].push(b);
   });
+  const blocksByDate = {};
+  blocks.forEach(b => {
+    if (!blocksByDate[b.blocked_date]) blocksByDate[b.blocked_date] = [];
+    blocksByDate[b.blocked_date].push(b);
+  });
 
   function bookingStyle(b) {
     const [h, m] = b.booking_time.split(":").map(Number);
@@ -655,6 +660,30 @@ function WeekView({ bookings, loading, prac, token, onAddBooking, onStatusChange
                         <div style={{ position: "absolute", left: -1, top: -4, width: 8, height: 8, borderRadius: "50%", background: "var(--red)" }} />
                       </div>
                     )}
+                    {(blocksByDate[ds] || []).map((blk, bi) => {
+                      const full = !blk.start_time;
+                      let top = 0, height = TOTAL_SLOTS * SLOT_H;
+                      if (!full) {
+                        const [sh, sm] = blk.start_time.split(":").map(Number);
+                        const [eh, em] = blk.end_time.split(":").map(Number);
+                        top = ((sh * 60 + sm - HOUR_START * 60) / 30) * SLOT_H;
+                        height = (((eh * 60 + em) - (sh * 60 + sm)) / 30) * SLOT_H;
+                      }
+                      return (
+                        <div key={"blk" + bi} style={{
+                          position: "absolute", top, height, left: 0, right: 0,
+                          background: "repeating-linear-gradient(45deg, rgba(154,145,138,.13), rgba(154,145,138,.13) 6px, rgba(154,145,138,.06) 6px, rgba(154,145,138,.06) 12px)",
+                          borderTop: full ? "none" : "1px solid rgba(154,145,138,.3)",
+                          borderBottom: full ? "none" : "1px solid rgba(154,145,138,.3)",
+                          zIndex: 1, pointerEvents: "none",
+                          display: "flex", alignItems: "flex-start", justifyContent: "center",
+                        }}>
+                          <span style={{ fontSize: 9, color: "var(--warm-gray)", letterSpacing: ".5px", textTransform: "uppercase", marginTop: 4, fontWeight: 500 }}>
+                            {full ? "Blocked" : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
                     {dayBookings.map(b => {
                       const { top, height } = bookingStyle(b);
                       return (
@@ -831,6 +860,7 @@ const [newOverrideEnd, setNewOverrideEnd] = useState("");
 const [overrideSaving, setOverrideSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
   const [staffBookServices, setStaffBookServices] = useState([]);
+  const [weekBlocks, setWeekBlocks] = useState([]);
   const [stripeConnecting, setStripeConnecting] = useState(false);
   const [depositSaving, setDepositSaving] = useState(false);
   const [statusRefreshing, setStatusRefreshing] = useState(false);
@@ -1009,6 +1039,14 @@ useEffect(() => {
       }
       setBookings(rows);
     }).catch(console.error).finally(() => setLoading(false));
+  }, [auth, prac, tab]);
+  useEffect(() => {
+    if (!auth || !prac || tab !== "bookings" || IS_DEMO) return;
+    const todayStr = new Date().toISOString().split("T")[0];
+    supabase.query("blocked_dates", {
+      filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + todayStr + "&order=blocked_date",
+      token: auth.access_token,
+    }).then(setWeekBlocks).catch(console.error);
   }, [auth, prac, tab]);
 
   useEffect(() => {
@@ -1200,6 +1238,7 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
               onCancel={() => setShowStaffBooking(false)} />
           ) : (
             <WeekView bookings={confirmedBookings} loading={loading} prac={prac} token={auth.access_token}
+              blocks={weekBlocks}
               onAddBooking={() => setShowStaffBooking(true)}
               onStatusChange={updateStatus}
               onReschedule={rescheduleBooking} />
