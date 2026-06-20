@@ -832,13 +832,21 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   // Handle Stripe Connect return
-  useEffect(() => {
+useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const stripeStatus = params.get("stripe");
-    if (stripeStatus === "success") {
+    if (stripeStatus === "success" && prac?.id && !IS_DEMO) {
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-account-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ practitioner_id: prac.id }),
+      })
+        .then(r => r.json())
+        .then(d => { if (typeof d.charges_enabled === "boolean") setPrac(prev => ({ ...prev, stripe_charges_enabled: d.charges_enabled })); })
+        .catch(e => console.error("Stripe status sync failed:", e));
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+  }, [prac?.id]);
 
   // Session restore
   useEffect(() => {
@@ -1136,7 +1144,7 @@ break_duration: row.break_start ? (parseInt(row.break_duration) || null) : null,
   const confirmedBookings = bookings.filter(b => b.status === "confirmed");
   const dashGroups = [...new Set(customServices.filter(s => s.group_name).map(s => s.group_name))];
   const dashUngrouped = customServices.filter(s => !s.group_name);
-const stripeConnected = !!prac?.stripe_account_id;
+const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enabled;
   return (
     <div className="nn-dash">
       <div className="nn-dash-header">
