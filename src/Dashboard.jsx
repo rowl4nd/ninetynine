@@ -1123,7 +1123,7 @@ useEffect(() => {
     if (!auth || !prac || !showStaffBooking) return;
     if (IS_DEMO) { setStaffBookServices(DEMO_SERVICES_LIST); return; }
     supabase.query("custom_services", {
-      select: "*,addon:custom_service_addons(*)",
+      select: "*,addons:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
      }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
@@ -1184,7 +1184,7 @@ useEffect(() => {
   function loadServices() {
     if (!auth || !prac) return;
     supabase.query("custom_services", {
-      select: "*,addon:custom_service_addons(*)",
+      select: "*,addons:custom_service_addons(*)",
       filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
      }).then(rows => setCustomServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
