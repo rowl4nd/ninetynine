@@ -180,17 +180,16 @@ function isValidEmail(email) {
 // WAITLIST JOIN (shown when no slots available on selected date)
 // ============================================================
 
-function WaitlistJoin({ prac, date, services }) {
+function WaitlistJoin({ prac, date, serviceId, serviceTitle, duration, price }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
-  const [selectedSvc, setSelectedSvc] = useState(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [alreadyOn, setAlreadyOn] = useState(false);
   const emailValid = isValidEmail(email);
-  const canSubmit = name.trim() && phone.trim() && emailValid && selectedSvc && !saving;
+  const canSubmit = name.trim() && phone.trim() && emailValid && !saving;
 
   async function handleJoin() {
     if (!canSubmit) return;
@@ -207,13 +206,12 @@ function WaitlistJoin({ prac, date, services }) {
         client_name: name.trim(),
         client_email: email.toLowerCase().trim(),
         client_phone: phone.trim(),
-        service_id: selectedSvc.id,
-        service_title: selectedSvc.title,
-        duration: selectedSvc.duration,
-        price: selectedSvc.price,
+        service_id: serviceId,
+        service_title: serviceTitle,
+        duration: duration,
+        price: price,
       });
 
-      // Send waitlist confirmation email
       try {
         await fetch(`${SUPABASE_URL}/functions/v1/waitlist-confirmation`, {
           method: "POST",
@@ -230,7 +228,6 @@ function WaitlistJoin({ prac, date, services }) {
         });
       } catch (emailErr) {
         console.error("Waitlist confirmation email failed:", emailErr);
-        // Don't block the user — they're still on the list
       }
 
       setDone(true);
@@ -268,9 +265,6 @@ function WaitlistJoin({ prac, date, services }) {
     );
   }
 
-  const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
-  const ungrouped = services.filter(s => !s.group_name);
-
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontSize: 13, color: "var(--red)", fontWeight: 300, marginBottom: 16 }}>
@@ -278,45 +272,8 @@ function WaitlistJoin({ prac, date, services }) {
       </div>
       <div style={{ padding: "20px", background: "var(--cream)", border: "1.5px solid var(--border)" }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Join the waitlist</div>
-        <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.6 }}>
-          We'll email you if a cancellation comes up on {formattedDate} with {prac.name}.
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10 }}>Which service?</div>
-          {groups.map(group => (
-            <div key={group} style={{ marginBottom: 12 }}>
-              <div className="nn-svc-group-label">{group}</div>
-              {services.filter(s => s.group_name === group).map(s => (
-                <div key={s.id}
-                  className={"nn-svc-item" + (selectedSvc?.id === s.id ? " picked" : "")}
-                  onClick={() => setSelectedSvc(s)}
-                  style={{ marginBottom: 6, padding: "12px 16px" }}>
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: 13 }}>{s.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{s.duration} min</div>
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)" }}>£{s.price}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-          {ungrouped.length > 0 && (
-            <div>
-              {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
-              {ungrouped.map(s => (
-                <div key={s.id}
-                  className={"nn-svc-item" + (selectedSvc?.id === s.id ? " picked" : "")}
-                  onClick={() => setSelectedSvc(s)}
-                  style={{ marginBottom: 6, padding: "12px 16px" }}>
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: 13 }}>{s.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{s.duration} min</div>
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)" }}>£{s.price}</div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 16, lineHeight: 1.6 }}>
+          We'll email you if a cancellation comes up for your {serviceTitle} on {formattedDate} with {prac.name}.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={{ fontSize: 13, padding: "10px 14px" }} />
@@ -978,7 +935,14 @@ const [availability, setAvailability] = useState([]);
                 {slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
                 ) : slots.length === 0 ? (
-                  <WaitlistJoin prac={prac} date={date} services={customServices} />
+                  <WaitlistJoin
+                    prac={prac}
+                    date={date}
+                    serviceId={cart[0]?.service.id}
+                    serviceTitle={serviceTitle}
+                    duration={totalDuration}
+                    price={totalPrice}
+                  />
                 ) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
