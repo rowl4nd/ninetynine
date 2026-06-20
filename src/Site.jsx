@@ -1347,8 +1347,9 @@ export function CancelPage({ token }) {
   const treatmentName = booking?.service_title || booking?.notes || "Your treatment";
 
   // Calculate refund eligibility for display
-  const hoursUntil = booking ? (new Date(`${booking.booking_date}T${booking.booking_time}`) - new Date()) / (1000 * 60 * 60) : 0;
+const hoursUntil = booking ? (new Date(`${booking.booking_date}T${booking.booking_time}`) - new Date()) / (1000 * 60 * 60) : 0;
   const eligibleForRefund = booking?.deposit_paid && hoursUntil >= 48;
+  const withinWindow = booking && hoursUntil < 48;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
@@ -1364,7 +1365,17 @@ export function CancelPage({ token }) {
         </div>
       )}
 
-      {status === "confirm" && booking && (
+      {status === "confirm" && booking && withinWindow && (
+        <div style={{ maxWidth: 440, width: "100%", textAlign: "center" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 14 }}>Within the cancellation window</div>
+          <p style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.7, marginBottom: 28 }}>
+            This appointment is less than 48 hours away, so it can't be cancelled online. Please message your practitioner directly{booking.practitioner?.name ? " (" + booking.practitioner.name + ")" : ""} as soon as you can — the quickest way is to DM us on Instagram <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)" }}>@ninetyninebyk</a> and we'll pass it on.
+          </p>
+          <a href="/" style={{ display: "inline-block", padding: "14px 36px", background: "var(--charcoal)", color: "var(--cream)", textDecoration: "none", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>Back to Website</a>
+        </div>
+      )}
+
+      {status === "confirm" && booking && !withinWindow && (
         <div style={{ maxWidth: 440, width: "100%" }}>
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 300, marginBottom: 8, textAlign: "center" }}>Cancel appointment</div>
           <p style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, marginBottom: 32 }}>Are you sure you want to cancel this booking?</p>
@@ -1547,7 +1558,12 @@ export function ClientPortal({ email, token }) {
       },
       body: JSON.stringify({ cancellation_token: booking.cancellation_token }),
     });
-    const data = await res.json();
+const data = await res.json();
+    if (data.blocked) {
+      alert("This appointment is less than 48 hours away, so it can't be cancelled online. Please message your practitioner directly — DM us on Instagram @ninetyninebyk and we'll help.");
+      setCancellingId(null);
+      return;
+    }
     if (data.error) throw new Error(data.error);
     setBookings(prev => prev.filter(b => b.id !== booking.id));
   } catch (e) {
