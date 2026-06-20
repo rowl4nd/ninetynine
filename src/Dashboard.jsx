@@ -104,7 +104,12 @@ function ServiceForm({ practitionerId, token, existingService, existingGroups, o
           )}
         </div>
         <div><label className="nn-input-label">Service Title</label><input className="nn-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. BIAB Overlay" /></div>
-        <div><label className="nn-input-label">Description (optional)</label><input className="nn-input" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Includes removal of previous set" /></div>
+        <div>
+          <label className="nn-input-label">Description (optional)</label>
+          <textarea className="nn-input" value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="e.g. Includes removal of previous set. Press Enter for a new line."
+            rows={4} style={{ resize: "vertical", minHeight: 90, lineHeight: 1.6, fontFamily: "'Outfit',sans-serif" }} />
+        </div>
         <div style={{ display: "flex", gap: 16 }}>
           <div style={{ flex: 1 }}><label className="nn-input-label">Duration (minutes)</label><input className="nn-input" type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45" /></div>
           <div style={{ flex: 1 }}><label className="nn-input-label">Price (£)</label><input className="nn-input" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="30" /></div>
