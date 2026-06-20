@@ -1013,8 +1013,10 @@ const [availability, setAvailability] = useState([]);
                         className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
                         onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
                         disabled={disabled}>
-                        {d}
-                        {dotColor && <span style={{ display: "block", width: 5, height: 5, borderRadius: "50%", background: dotColor, margin: "2px auto 0" }} />}
+                        <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, lineHeight: 1, width: "100%" }}>
+                          <span>{d}</span>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor || "transparent" }} />
+                        </span>
                       </button>
                     );
                   }
