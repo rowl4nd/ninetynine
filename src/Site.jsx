@@ -439,6 +439,7 @@ export function WaitlistBookPage({ token }) {
       p_date: e.waitlist_date,
       p_duration: e.duration || 30,
       p_interval: p.slot_interval || 30,
+      p_min_hours: 0,
     });
     const available = rows.map(r => r.slot_time.slice(0, 5));
     if (available.length === 0) { setStatus("taken"); return; }
@@ -462,6 +463,7 @@ export function WaitlistBookPage({ token }) {
         p_date: entry.waitlist_date,
         p_duration: entry.duration || 30,
         p_interval: prac?.slot_interval || 30,
+        p_min_hours: 0,
       });
       const stillAvailable = rows.map(r => r.slot_time.slice(0, 5));
       if (!stillAvailable.includes(time)) {
