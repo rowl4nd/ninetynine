@@ -209,7 +209,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const totalPrice = cart.reduce((s, it) => s + itemPrice(it), 0);
   const serviceTitle = cart.map(it => it.service.title + (it.addons.length ? " + " + it.addons.map(a => a.title).join(" + ") : "")).join(" + ");
 
-  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30, 0);
 
   const [bookAvail, setBookAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
   useEffect(() => {
@@ -570,7 +570,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const [rescheduling, setRescheduling] = useState(false);
 
   const { slots: editSlots, loading: editSlotsLoading } = useAvailableSlots(
-    sheet?.practitioner_id, editDate, sheet?.duration, prac?.slot_interval || 30
+    sheet?.practitioner_id, editDate, sheet?.duration, prac?.slot_interval || 30, 0
   );
 
   useEffect(() => {
