@@ -6,7 +6,7 @@ import { supabase, SUPABASE_URL, IS_DEMO } from "./supabase.js";
 import {
   DEMO_PRACTITIONERS, DEMO_SERVICES_LIST,
   getDaysInMonth, getMonthName, getDayName, dateStr,
-  useAvailableSlots, SvcItem,
+useAvailableSlots, SvcItem, ClampedDescription,
 } from "./shared.jsx";
 
 // ============================================================
@@ -157,7 +157,7 @@ function ServiceCard({ svc, onEdit, onRemove }) {
     <div style={{ padding: "18px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8, display: "flex", alignItems: "flex-start", gap: 16 }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 500, fontSize: 14 }}>{svc.title}</div>
-        {svc.description && <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{svc.description}</div>}
+{svc.description && <ClampedDescription text={svc.description} />}
         <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 4 }}>{svc.duration} min · £{svc.price}</div>
         {svc.addons?.length > 0 && svc.addons.map(a => (
           <div key={a.id} style={{ marginTop: 8, padding: "8px 12px", background: "var(--cream)", border: "1px solid var(--border)", fontSize: 12 }}>
