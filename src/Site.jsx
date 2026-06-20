@@ -177,6 +177,101 @@ function isValidEmail(email) {
 }
 
 // ============================================================
+// CONTACT FORM
+// ============================================================
+
+function ContactForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [company, setCompany] = useState(""); // honeypot
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const emailValid = isValidEmail(email);
+  const canSend = name.trim() && emailValid && message.trim() && !sending;
+
+  async function handleSend() {
+    if (!canSend) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/contact-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), message: message.trim(), company }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSent(true);
+    } catch (e) {
+      console.error(e);
+      alert("Sorry, your message couldn't be sent. Please try again, or DM us on Instagram @ninetyninebyk.");
+    }
+    setSending(false);
+  }
+
+  if (sent) {
+    return (
+      <div style={{ maxWidth: 520, margin: "48px auto 0", textAlign: "center", padding: "32px 24px", background: "var(--warm-white)", border: "1px solid var(--border)" }}>
+        <div className="nn-success-icon" style={{ width: 56, height: 56, margin: "0 auto 20px" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 8 }}>Message sent</div>
+        <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7 }}>
+          Thanks {name.trim().split(" ")[0]} — we'll get back to you as soon as we can.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 520, margin: "48px auto 0" }}>
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 400, marginBottom: 8, textAlign: "center" }}>Send us a message</div>
+      <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7, textAlign: "center", marginBottom: 28 }}>
+        Have a question? Drop us a message and we'll reply by email.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <label className="nn-input-label">Your Name</label>
+          <input className="nn-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+        </div>
+        <div>
+          <label className="nn-input-label">
+            Email Address
+            {emailTouched && !emailValid && (
+              <span style={{ color: "var(--red)", fontWeight: 400, letterSpacing: 0, textTransform: "none", marginLeft: 8, fontSize: 11 }}>
+                Please enter a valid email
+              </span>
+            )}
+          </label>
+          <input className="nn-input" type="email" value={email}
+            onChange={e => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)}
+            placeholder="your@email.com"
+            style={emailTouched && !emailValid ? { borderColor: "var(--red)" } : {}} />
+        </div>
+        <div>
+          <label className="nn-input-label">Message</label>
+          <textarea className="nn-input" value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="How can we help?" rows={5}
+            style={{ resize: "vertical", minHeight: 110, lineHeight: 1.6, fontFamily: "'Outfit',sans-serif" }} />
+        </div>
+        {/* Honeypot — hidden from people, visible to bots */}
+        <input type="text" value={company} onChange={e => setCompany(e.target.value)}
+          tabIndex={-1} autoComplete="off" aria-hidden="true"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} />
+        <button className="nn-btn nn-btn-dark" onClick={handleSend} disabled={!canSend}
+          style={{ width: "100%", marginTop: 6, opacity: canSend ? 1 : 0.35 }}>
+          {sending ? "Sending..." : "Send Message"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // WAITLIST JOIN (shown when no slots available on selected date)
 // ============================================================
 
@@ -1711,6 +1806,7 @@ export default function Site({ onDash }) {
             <div className="nn-contact-block"><h4>Opening Hours</h4><p>Varies depending on practitioner</p></div>
             <div className="nn-contact-block"><h4>Get in Touch</h4><p>Instagram: <a href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold)", textDecoration: "none" }}>@ninetyninebyk</a><br />Book online</p></div>
           </div>
+          <ContactForm />
         </section>
       </div>
 
