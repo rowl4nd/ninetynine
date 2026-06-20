@@ -184,9 +184,12 @@ function ServiceCard({ svc, onEdit, onRemove }) {
 // ============================================================
 
 function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
-  const [step, setStep] = useState(1);
-  const [svc, setSvc] = useState(null);
-  const [selectedAddons, setSelectedAddons] = useState([]);
+  // stage: "service" | "addons" | "cart" | "date" | "details"
+  const [stage, setStage] = useState("service");
+  const [cart, setCart] = useState([]);              // [{ uid, service, addons }]
+  const [draft, setDraft] = useState(null);          // service being configured
+  const [draftAddons, setDraftAddons] = useState([]);
+  const uidRef = useRef(0);
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [clientName, setClientName] = useState("");
@@ -199,12 +202,15 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const [cM, setCM] = useState(now.getMonth());
   const [cY, setCY] = useState(now.getFullYear());
 
-  const addonsDuration = selectedAddons.reduce((sum, a) => sum + a.duration, 0);
-  const addonsPrice = selectedAddons.reduce((sum, a) => sum + a.price, 0);
-  const totalDuration = (svc?.duration || 0) + addonsDuration;
-  const totalPrice = (svc?.price || 0) + addonsPrice;
-  const addonTitles = selectedAddons.map(a => a.title).join(" + ");
+  // Cart-wide totals (each item = service + its add-ons)
+  const itemDuration = (it) => it.service.duration + it.addons.reduce((s, a) => s + a.duration, 0);
+  const itemPrice = (it) => it.service.price + it.addons.reduce((s, a) => s + a.price, 0);
+  const totalDuration = cart.reduce((s, it) => s + itemDuration(it), 0);
+  const totalPrice = cart.reduce((s, it) => s + itemPrice(it), 0);
+  const serviceTitle = cart.map(it => it.service.title + (it.addons.length ? " + " + it.addons.map(a => a.title).join(" + ") : "")).join(" + ");
+
   const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30);
+
   const [bookAvail, setBookAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
   useEffect(() => {
     if (!prac || IS_DEMO) { setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }); return; }
@@ -225,20 +231,42 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = services.filter(s => !s.group_name);
 
-  function pickService(s) { setSvc(s); setSelectedAddons([]); }
-  function toggleAddon(a) {
-    setSelectedAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
+  function handleSelectService(s) {
+    if (s.addons?.length > 0) {
+      setDraft(s); setDraftAddons([]); setStage("addons");
+    } else {
+      setCart(prev => [...prev, { uid: uidRef.current++, service: s, addons: [] }]);
+      setStage("cart");
+    }
   }
+  function toggleDraftAddon(a) {
+    setDraftAddons(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a]);
+  }
+  function commitDraft() {
+    setCart(prev => [...prev, { uid: uidRef.current++, service: draft, addons: draftAddons }]);
+    setDraft(null); setDraftAddons([]);
+    setStage("cart");
+  }
+  function removeCartItem(uid) {
+    setCart(prev => {
+      const next = prev.filter(it => it.uid !== uid);
+      if (next.length === 0) setStage("service");
+      return next;
+    });
+    setDate(null); setTime(null);
+  }
+  function goAddAnother() { setDate(null); setTime(null); setStage("service"); }
 
   async function handleSave() {
-    if (!svc || !date || !time || !clientName || !phone) return;
+    if (!cart.length || !date || !time || !clientName || !phone) return;
     setSaving(true);
     try {
       if (IS_DEMO) { setDone(true); setSaving(false); return; }
+      const allAddons = cart.flatMap(it => it.addons.map(a => a.title));
       await supabase.insert("bookings", {
         practitioner_id: prac.id,
-        service_id: svc.id,
-        service_title: svc.title + (selectedAddons.length ? " + " + addonTitles : ""),
+        service_id: cart[0]?.service.id,
+        service_title: serviceTitle,
         client_name: clientName,
         client_phone: phone,
         client_email: email,
@@ -247,7 +275,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         duration: totalDuration,
         price: totalPrice,
         booked_by: "staff",
-        notes: (selectedAddons.length ? "Add-ons: " + selectedAddons.map(a => a.title).join(", ") + ". " : "") + (notes || ""),
+        notes: (allAddons.length ? "Add-ons: " + allAddons.join(", ") + ". " : "") + (notes || ""),
       }, token);
       setDone(true);
     } catch (e) { console.error(e); alert("Error creating booking. Please try again."); }
@@ -260,7 +288,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         <div className="nn-success-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></div>
         <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 28, fontWeight: 300, textAlign: "center", marginBottom: 10 }}>Booking added</h3>
         <p style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.6, marginBottom: 32 }}>
-          {clientName} is booked in for {svc?.title} on {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} at {time}.
+          {clientName} is booked in for {serviceTitle} on {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} at {time}.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
           <button onClick={onDone} style={{ padding: "14px 32px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>Back to Bookings</button>
@@ -271,6 +299,32 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
 
   const H3 = ({ children }) => <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 400, marginBottom: 20 }}>{children}</h3>;
 
+  const CartSummary = ({ editable = false }) => (
+    <div style={{ background: "var(--cream)", border: "1.5px solid var(--border)", padding: "16px 20px", marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 12 }}>This booking</div>
+      {cart.map(it => (
+        <div key={it.uid} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14, gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>{it.service.title}</div>
+            {it.addons.length > 0 && <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>+ {it.addons.map(a => a.title).join(", ")}</div>}
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{itemDuration(it)} min</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <span style={{ fontWeight: 600, color: "var(--gold)" }}>£{itemPrice(it)}</span>
+            {editable && (
+              <button onClick={() => removeCartItem(it.uid)} aria-label="Remove"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--warm-gray)", fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
+            )}
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, fontSize: 14 }}>
+        <span style={{ fontWeight: 500 }}>Total · {totalDuration} min</span>
+        <span style={{ fontWeight: 600, color: "var(--gold)" }}>£{totalPrice}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ maxWidth: 680 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
@@ -278,9 +332,9 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--warm-gray)", fontFamily: "'Outfit',sans-serif" }}>✕ Cancel</button>
       </div>
 
-      {step === 1 && (
+      {stage === "service" && (
         <div>
-          <H3>Select a service</H3>
+          <H3>{cart.length > 0 ? "Add another service" : "Select a service"}</H3>
           {services.length === 0 ? (
             <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, padding: "20px 0" }}>No services set up yet. Add services in the "My Services" tab first.</div>
           ) : (
@@ -289,7 +343,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                 <div key={group} style={{ marginBottom: 24 }}>
                   <div className="nn-svc-group-label">{group}</div>
                   {services.filter(s => s.group_name === group).map(s => (
-                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => pickService(s)} />
+                    <SvcItem key={s.id} s={s} picked={false} onSelect={() => handleSelectService(s)} />
                   ))}
                 </div>
               ))}
@@ -297,40 +351,56 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                 <div>
                   {groups.length > 0 && <div className="nn-svc-group-label">Other</div>}
                   {ungrouped.map(s => (
-                    <SvcItem key={s.id} s={s} picked={svc?.id === s.id} onSelect={() => pickService(s)} />
+                    <SvcItem key={s.id} s={s} picked={false} onSelect={() => handleSelectService(s)} />
                   ))}
                 </div>
               )}
             </div>
           )}
-          {svc?.addons?.length > 0 && (
-            <div style={{ marginTop: 24, padding: "20px", background: "var(--cream)", border: "1.5px solid var(--border)" }}>
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Optional add-ons</div>
-              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 12 }}>Tap any that apply.</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {svc.addons.map(a => {
-                  const on = selectedAddons.some(x => x.id === a.id);
-                  return (
-                    <button key={a.id} onClick={() => toggleAddon(a)}
-                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: on ? "var(--charcoal)" : "var(--warm-white)", color: on ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (on ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, textAlign: "left" }}>
-                      <span>{on ? "✓ " : ""}{a.title} <span style={{ opacity: .7, fontWeight: 300 }}>· {a.duration} min</span></span>
-                      <span style={{ fontWeight: 600, color: on ? "var(--cream)" : "var(--gold)" }}>+£{a.price}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={onCancel}>Cancel</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(2)} disabled={!svc} style={{ opacity: svc ? 1 : .35 }}>Continue</button>
+            <button className="nn-btn-back" onClick={() => cart.length > 0 ? setStage("cart") : onCancel()}>{cart.length > 0 ? "Back" : "Cancel"}</button>
           </div>
         </div>
       )}
 
-      {step === 2 && (
+      {stage === "addons" && draft && (
+        <div>
+          <H3>Add anything to {draft.title}?</H3>
+          <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24, lineHeight: 1.7 }}>Optional extras. Tap any that apply.</p>
+          {draft.addons.map(a => {
+            const on = draftAddons.some(x => x.id === a.id);
+            return (
+              <div key={a.id} className={"nn-svc-item" + (on ? " picked" : "")} onClick={() => toggleDraftAddon(a)} style={{ marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{on ? "✓ " : ""}{a.title}</div>
+                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>{a.duration} min extra</div>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "var(--gold)" }}>+£{a.price}</div>
+              </div>
+            );
+          })}
+          <div className="nn-booking-nav">
+            <button className="nn-btn-back" onClick={() => { setDraft(null); setDraftAddons([]); setStage("service"); }}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={commitDraft}>Add to Booking</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "cart" && (
+        <div>
+          <H3>Booking so far</H3>
+          <CartSummary editable />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button className="nn-btn nn-btn-outline" onClick={goAddAnother} style={{ width: "100%", justifyContent: "center" }}>+ Add another service</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStage("date")} disabled={cart.length === 0} style={{ width: "100%", opacity: cart.length ? 1 : .35 }}>Continue to Date &amp; Time</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "date" && (
         <div>
           <H3>Pick a date &amp; time</H3>
+          <CartSummary />
           <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
             <div className="nn-cal">
               <div className="nn-cal-head">
@@ -378,19 +448,19 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
             )}
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(1)}>Back</button>
-            <button className="nn-btn nn-btn-dark" onClick={() => setStep(3)} disabled={!date || !time} style={{ opacity: date && time ? 1 : .35 }}>Continue</button>
+            <button className="nn-btn-back" onClick={() => setStage("cart")}>Back</button>
+            <button className="nn-btn nn-btn-dark" onClick={() => setStage("details")} disabled={!date || !time} style={{ opacity: date && time ? 1 : .35 }}>Continue</button>
           </div>
         </div>
       )}
 
-      {step === 3 && (
+      {stage === "details" && (
         <div>
           <H3>Client details</H3>
           <div style={{ background: "var(--cream)", border: "1px solid var(--border)", padding: 32, marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
               <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>Service</span>
-              <span style={{ fontWeight: 500 }}>{svc?.title}{selectedAddons.length ? " + " + addonTitles : ""}</span>
+              <span style={{ fontWeight: 500, textAlign: "right", maxWidth: "60%" }}>{serviceTitle}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
               <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>Date &amp; Time</span>
@@ -412,7 +482,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
             <div><label className="nn-input-label">Notes (optional)</label><input className="nn-input" type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Walk-in, prefers short nails" /></div>
           </div>
           <div className="nn-booking-nav">
-            <button className="nn-btn-back" onClick={() => setStep(2)}>Back</button>
+            <button className="nn-btn-back" onClick={() => setStage("date")}>Back</button>
             <button className="nn-btn nn-btn-gold" onClick={handleSave} disabled={!clientName || !phone || saving} style={{ opacity: clientName && phone && !saving ? 1 : .35 }}>
               {saving ? "Saving..." : "Confirm Booking"}
             </button>
