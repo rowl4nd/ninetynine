@@ -727,7 +727,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
       booking: b, el, pointerId: e.pointerId,
       startX: e.clientX, startY: e.clientY,
       originalTop, others, dayBlocks,
-      moved: false, armed: false, live: null,
+      moved: false, armed: false, live: null, startT: Date.now(),
     };
     clearTimeout(longPressRef.current);
     longPressRef.current = setTimeout(() => {
@@ -770,8 +770,10 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
     if (!st) return;
     try { st.el.releasePointerCapture(st.pointerId); } catch {}
     if (!st.armed) {
-      // Tap (no lift, no scroll) → open the detail sheet, as before.
-      if (!st.moved) tapOpen(b);
+      // Tap = small total travel, regardless of jitter Chrome's emulator reports.
+      const dx = Math.abs(e.clientX - st.startX);
+      const dy = Math.abs(e.clientY - st.startY);
+      if (dx < 12 && dy < 12) tapOpen(b);
       dragStateRef.current = null;
       return;
     }
@@ -805,10 +807,10 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
     armedRef.current = false;
     // A quick tap on mobile often fires pointercancel (not pointerup) because the
     // chip sits in a scrollable area. If it never armed and never moved, treat it as a tap.
-    if (st && !st.armed && !st.moved) {
+    if (st && !st.armed) {
       const dx = e ? Math.abs(e.clientX - st.startX) : 0;
       const dy = e ? Math.abs(e.clientY - st.startY) : 0;
-      if (dx < 10 && dy < 10) tapOpen(st.booking);
+      if (dx < 12 && dy < 12) tapOpen(st.booking);
     }
     dragStateRef.current = null;
     setDrag(null);
