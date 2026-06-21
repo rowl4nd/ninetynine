@@ -617,6 +617,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   }
 
   function closeSheet() {
+  console.log("closeSheet called");
   setSheet(null);
   setSheetMode("detail");
   setEditDate(null);
