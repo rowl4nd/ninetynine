@@ -611,10 +611,8 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 
   function tapOpen(b) {
     const t = Date.now();
-    console.log("tapOpen called, gap:", t - lastTapRef.current);
-    if (t - lastTapRef.current < 500) { console.log("  -> BLOCKED by dedupe"); return; }
+    if (t - lastTapRef.current < 500) return; }
     lastTapRef.current = t;
-    console.log("  -> opening sheet");
     openSheet(b);
   }
 
@@ -722,7 +720,6 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   }, []);
 
   function onChipPointerDown(e, b) {
-    console.log("DOWN", e.pointerType, b.client_name);
     if (e.button != null && e.button > 0) return;
     const el = e.currentTarget;
     const { top: originalTop } = bookingStyle(b);
@@ -772,7 +769,6 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 
   function onChipPointerUp(e, b) {
     const st = dragStateRef.current;
-    console.log("UP", "armed:", st?.armed, "moved:", st?.moved, "dx:", st ? Math.abs(e.clientX - st.startX) : "no-st");
     clearTimeout(longPressRef.current);
     if (!st) return;
     try { st.el.releasePointerCapture(st.pointerId); } catch {}
@@ -810,7 +806,6 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 
   function onChipPointerCancel(e) {
     const st = dragStateRef.current;
-    console.log("CANCEL", "armed:", st?.armed, "moved:", st?.moved);
     clearTimeout(longPressRef.current);
     armedRef.current = false;
     // A quick tap on mobile often fires pointercancel (not pointerup) because the
@@ -971,7 +966,6 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                           onPointerUp={e => onChipPointerUp(e, b)}
                           onPointerCancel={onChipPointerCancel}
                           onClick={() => {
-                            console.log("CLICK fired");
                             if (dragStateRef.current) return;
                             if (Date.now() - justDraggedRef.current < 600) return;
                             tapOpen(b);
