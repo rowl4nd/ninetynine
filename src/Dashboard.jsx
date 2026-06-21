@@ -525,7 +525,7 @@ function fmtShortDate(date) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, onStatusChange, onReschedule }) {
+function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, onStatusChange, onReschedule, onUpdateDetails }) {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [sheet, setSheet] = useState(null);
   const [sheetMode, setSheetMode] = useState("detail");
@@ -568,6 +568,11 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const [editDate, setEditDate] = useState(null);
   const [editTime, setEditTime] = useState(null);
   const [rescheduling, setRescheduling] = useState(false);
+  const [detailName, setDetailName] = useState("");
+  const [detailPhone, setDetailPhone] = useState("");
+  const [detailEmail, setDetailEmail] = useState("");
+  const [detailNotes, setDetailNotes] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
 
   const { slots: editSlots, loading: editSlotsLoading } = useAvailableSlots(
     sheet?.practitioner_id, editDate, sheet?.duration, prac?.slot_interval || 30, 0
@@ -643,6 +648,32 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
       alert("Error rescheduling. Please try again.");
     }
     setRescheduling(false);
+  }
+  function startEditDetails() {
+    setDetailName(sheet.client_name || "");
+    setDetailPhone(sheet.client_phone || "");
+    setDetailEmail(sheet.client_email || "");
+    setDetailNotes(sheet.notes || "");
+    setSheetMode("editDetails");
+  }
+
+  async function handleSaveDetails() {
+    if (!detailName.trim() || !detailPhone.trim()) return;
+    setSavingDetails(true);
+    try {
+      await onUpdateDetails(sheet.id, {
+        client_name: detailName.trim(),
+        client_phone: detailPhone.trim(),
+        client_email: detailEmail.trim(),
+        notes: detailNotes.trim(),
+      });
+      setSheet(prev => ({ ...prev, client_name: detailName.trim(), client_phone: detailPhone.trim(), client_email: detailEmail.trim(), notes: detailNotes.trim() }));
+      setSheetMode("detail");
+    } catch (e) {
+      console.error(e);
+      alert("Error saving details. Please try again.");
+    }
+    setSavingDetails(false);
   }
 
   // ── Drag-to-reschedule (long-press lift, same-day vertical move) ──
@@ -1011,11 +1042,12 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                     <span style={{ fontWeight: 500, textAlign: "right", maxWidth: "60%", color: label === "Deposit" ? "var(--green)" : "inherit" }}>{val}</span>
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-                  <button onClick={closeSheet} style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Close</button>
-                  <button onClick={() => setSheetMode("edit")} style={{ flex: 1, padding: "14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Edit</button>
+               <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
+                  <button onClick={closeSheet} style={{ flex: "1 1 calc(50% - 5px)", padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Close</button>
+                  <button onClick={startEditDetails} style={{ flex: "1 1 calc(50% - 5px)", padding: "14px", background: "none", border: "1.5px solid var(--charcoal)", color: "var(--charcoal)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Edit Details</button>
+                  <button onClick={() => setSheetMode("edit")} style={{ flex: "1 1 calc(50% - 5px)", padding: "14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Reschedule</button>
                   <button onClick={() => { if (window.confirm("Are you sure you want to cancel this booking for " + sheet.client_name + "?")) { onStatusChange(sheet.id, "cancelled"); closeSheet(); } }}
-                    style={{ flex: 1, padding: "14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Cancel</button>
+                    style={{ flex: "1 1 calc(50% - 5px)", padding: "14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase" }}>Cancel</button>
                 </div>
               </>
             )}
@@ -1070,6 +1102,27 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                   <button onClick={handleReschedule} disabled={!editDate || !editTime || rescheduling}
                     style={{ flex: 2, padding: "14px", background: "var(--gold)", color: "var(--charcoal)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: editDate && editTime && !rescheduling ? 1 : .35 }}>
                     {rescheduling ? "Saving..." : "Confirm New Time"}
+                  </button>
+                </div>
+              </>
+            )}
+            {sheetMode === "editDetails" && (
+              <>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 300, marginBottom: 4 }}>Edit client details</div>
+                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>
+                  Correcting an email here means reminders go to the right place. It won't re-send the original confirmation.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div><label className="nn-input-label">Client Name</label><input className="nn-input" type="text" value={detailName} onChange={e => setDetailName(e.target.value)} placeholder="Full name" /></div>
+                  <div><label className="nn-input-label">Phone Number</label><input className="nn-input" type="tel" value={detailPhone} onChange={e => setDetailPhone(e.target.value)} placeholder="07xxx xxxxxx" /></div>
+                  <div><label className="nn-input-label">Email</label><input className="nn-input" type="email" value={detailEmail} onChange={e => setDetailEmail(e.target.value)} placeholder="client@email.com" /></div>
+                  <div><label className="nn-input-label">Notes</label><input className="nn-input" type="text" value={detailNotes} onChange={e => setDetailNotes(e.target.value)} placeholder="e.g. prefers short nails" /></div>
+                </div>
+                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                  <button onClick={() => setSheetMode("detail")} style={{ flex: 1, padding: "14px", background: "none", border: "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--charcoal)" }}>Back</button>
+                  <button onClick={handleSaveDetails} disabled={!detailName.trim() || !detailPhone.trim() || savingDetails}
+                    style={{ flex: 2, padding: "14px", background: "var(--gold)", color: "var(--charcoal)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: detailName.trim() && detailPhone.trim() && !savingDetails ? 1 : .35 }}>
+                    {savingDetails ? "Saving..." : "Save Details"}
                   </button>
                 </div>
               </>
@@ -1373,6 +1426,14 @@ useEffect(() => {
       });
     } catch (e) { console.error("Reschedule email failed:", e); }
   }
+  async function updateBookingDetails(bookingId, fields) {
+    if (IS_DEMO) {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
+      return;
+    }
+    await supabase.update("bookings", fields, "id=eq." + bookingId, auth.access_token);
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
+  }
 
   useEffect(() => {
     if (!auth || !prac || tab !== "services") return;
@@ -1511,7 +1572,8 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                 blocks={weekBlocks}
                 onAddBooking={() => setShowStaffBooking(true)}
                 onStatusChange={updateStatus}
-                onReschedule={rescheduleBooking} />
+                onReschedule={rescheduleBooking}
+                onUpdateDetails={updateBookingDetails} />
 
               {waitlist.length > 0 && (
                 <div style={{ marginTop: 40 }}>
