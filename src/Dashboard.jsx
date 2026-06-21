@@ -545,6 +545,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const flashRef = useRef(null);
   const justDraggedRef = useRef(0);
   const lastTapRef = useRef(0);
+  const sheetOpenedAtRef = useRef(0);
 
   function scrollToNow() {
     if (!scrollContainerRef.current) return;
@@ -598,6 +599,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   }, []);
 
   function openSheet(b) {
+  sheetOpenedAtRef.current = Date.now();
   setSheet(b);
   setSheetMode("detail");
   setEditDate(null);
@@ -617,7 +619,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   }
 
   function closeSheet() {
-  console.log("closeSheet called");
+  if (Date.now() - sheetOpenedAtRef.current < 350) return; // ignore the echo click after open
   setSheet(null);
   setSheetMode("detail");
   setEditDate(null);
@@ -1020,7 +1022,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 
       {sheet && (
         <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(44,40,37,.4)", zIndex: 300 }} onClick={closeSheet} />
+          <div style={{ position: "fixed", inset: 0, background: "rgba(44,40,37,.4)", zIndex: 300 }} onClick={(e) => { if (e.target === e.currentTarget) closeSheet(); }} />
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--cream)", borderTop: "1px solid var(--border)", borderRadius: "12px 12px 0 0", zIndex: 301, padding: "0 24px 48px", maxHeight: "90vh", overflowY: "auto", animation: "sheetUp .3s cubic-bezier(.22,1,.36,1)" }}>
             <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 2, margin: "14px auto 24px" }} />
             {sheetMode === "detail" && (
