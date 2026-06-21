@@ -789,9 +789,17 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
     });
   }
 
-  function onChipPointerCancel() {
+  function onChipPointerCancel(e) {
     clearTimeout(longPressRef.current);
+    const st = dragStateRef.current;
     armedRef.current = false;
+    // A quick tap on mobile often fires pointercancel (not pointerup) because the
+    // chip sits in a scrollable area. If it never armed and never moved, treat it as a tap.
+    if (st && !st.armed && !st.moved) {
+      const dx = e ? Math.abs(e.clientX - st.startX) : 0;
+      const dy = e ? Math.abs(e.clientY - st.startY) : 0;
+      if (dx < 10 && dy < 10) openSheet(st.booking);
+    }
     dragStateRef.current = null;
     setDrag(null);
   }
