@@ -543,6 +543,8 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const dragStateRef = useRef(null);
   const armedRef = useRef(false);
   const flashRef = useRef(null);
+  const justDraggedRef = useRef(0);
+  const lastTapRef = useRef(0);
 
   function scrollToNow() {
     if (!scrollContainerRef.current) return;
@@ -604,6 +606,13 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   setEditCY(now.getFullYear());
   setClientHistory(null);
 }
+
+  function tapOpen(b) {
+    const t = Date.now();
+    if (t - lastTapRef.current < 500) return; // de-dupe pointerup + click both firing
+    lastTapRef.current = t;
+    openSheet(b);
+  }
 
   function closeSheet() {
   setSheet(null);
@@ -762,11 +771,12 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
     try { st.el.releasePointerCapture(st.pointerId); } catch {}
     if (!st.armed) {
       // Tap (no lift, no scroll) → open the detail sheet, as before.
-      if (!st.moved) openSheet(b);
+      if (!st.moved) tapOpen(b);
       dragStateRef.current = null;
       return;
     }
     armedRef.current = false;
+    justDraggedRef.current = Date.now();
     const live = st.live;
     dragStateRef.current = null;
     setDrag(null);
@@ -798,7 +808,7 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
     if (st && !st.armed && !st.moved) {
       const dx = e ? Math.abs(e.clientX - st.startX) : 0;
       const dy = e ? Math.abs(e.clientY - st.startY) : 0;
-      if (dx < 10 && dy < 10) openSheet(st.booking);
+      if (dx < 10 && dy < 10) tapOpen(st.booking);
     }
     dragStateRef.current = null;
     setDrag(null);
@@ -950,6 +960,11 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                           onPointerMove={e => onChipPointerMove(e, b)}
                           onPointerUp={e => onChipPointerUp(e, b)}
                           onPointerCancel={onChipPointerCancel}
+                          onClick={() => {
+                            if (dragStateRef.current) return;
+                            if (Date.now() - justDraggedRef.current < 600) return;
+                            tapOpen(b);
+                          }}
                           style={{ position: "absolute", top, height, left: 2, right: 2, background: "var(--gold)", borderLeft: "3px solid var(--charcoal)", borderRadius: 2, padding: "3px 6px", cursor: "pointer", overflow: lifted ? "visible" : "hidden", zIndex: lifted ? 20 : 2, boxShadow: isDragging ? "0 8px 24px rgba(44,40,37,.35)" : (isPending ? "0 4px 14px rgba(44,40,37,.22)" : "none"), transform: isDragging ? "scale(1.03)" : "none", opacity: isDragging ? 0.92 : 1, outline: lifted ? (valid ? "2px solid var(--charcoal)" : "2px solid var(--red)") : "none", transition: isDragging ? "none" : "filter .15s", touchAction: "auto" }}
                           onMouseEnter={e => { if (!lifted) e.currentTarget.style.filter = "brightness(.9)"; }}
                           onMouseLeave={e => e.currentTarget.style.filter = "none"}>
