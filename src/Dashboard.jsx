@@ -609,8 +609,10 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 
   function tapOpen(b) {
     const t = Date.now();
-    if (t - lastTapRef.current < 500) return; // de-dupe pointerup + click both firing
+    console.log("tapOpen called, gap:", t - lastTapRef.current);
+    if (t - lastTapRef.current < 500) { console.log("  -> BLOCKED by dedupe"); return; }
     lastTapRef.current = t;
+    console.log("  -> opening sheet");
     openSheet(b);
   }
 
