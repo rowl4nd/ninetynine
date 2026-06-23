@@ -192,6 +192,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const uidRef = useRef(0);
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
+  const [manualTime, setManualTime] = useState(false);
   const [clientName, setClientName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -401,6 +402,16 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         <div>
           <H3>Pick a date &amp; time</H3>
           <CartSummary />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", background: "var(--cream)", border: "1.5px solid var(--border)", marginBottom: 20, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>Custom time</div>
+              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>Override hours, book any day, allow overlaps</div>
+            </div>
+            <button onClick={() => { setManualTime(o => !o); setTime(null); }}
+              style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: manualTime ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+              <span style={{ position: "absolute", top: 3, left: manualTime ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+            </button>
+          </div>
           <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
             <div className="nn-cal">
               <div className="nn-cal-head">
@@ -423,7 +434,7 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                     const unavail = bookAvail.unavailable.has(jsDay);
                     const blocked = bookAvail.blocked.includes(ds);
                     const hasOverride = bookAvail.overrides.includes(ds);
-                    const disabled = past || blocked || (unavail && !hasOverride);
+                    const disabled = manualTime ? past : (past || blocked || (unavail && !hasOverride));
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
                     cells.push(<button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
                       onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }} disabled={disabled}>{d}</button>);
@@ -437,10 +448,18 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                 <div style={{ fontSize: 14, color: "var(--warm-gray)", marginBottom: 14, fontWeight: 300 }}>
                   {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)}
                 </div>
-                {slotsLoading ? (
+                {manualTime ? (
+                  <div>
+                    <input type="time" value={time || ""} onChange={e => setTime(e.target.value || null)}
+                      style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", width: "100%" }} />
+                    <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
+                      Manual time — availability and clashes aren't checked. {totalDuration} min from the time you set.
+                    </div>
+                  </div>
+                ) : slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading times...</div>
                 ) : slots.length === 0 ? (
-                  <div style={{ color: "var(--red)", fontSize: 14, fontWeight: 300 }}>No available slots. Try another day.</div>
+                  <div style={{ color: "var(--red)", fontSize: 14, fontWeight: 300 }}>No available slots. Try another day, or switch on Custom time.</div>
                 ) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
