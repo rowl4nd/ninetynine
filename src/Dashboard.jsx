@@ -226,8 +226,24 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
         blocked: blocked.map(b => b.blocked_date),
         overrides: overrides.map(o => o.override_date),
       });
-    }).catch(() => setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }));
+}).catch(() => setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }));
   }, [prac, token]);
+
+  const [slotCounts, setSlotCounts] = useState({});
+  useEffect(() => {
+    if (!prac || stage !== "date" || IS_DEMO) { setSlotCounts({}); return; }
+    supabase.rpc("get_monthly_slot_counts", {
+      p_practitioner_id: prac.id,
+      p_year: cY,
+      p_month: cM + 1,
+      p_duration: totalDuration || 30,
+      p_interval: prac.slot_interval || 30,
+    }).then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.slot_date] = r.slot_count; });
+      setSlotCounts(map);
+    }).catch(() => setSlotCounts({}));
+  }, [prac, cM, cY, stage, totalDuration]);
 
   const groups = [...new Set(services.filter(s => s.group_name).map(s => s.group_name))];
   const ungrouped = services.filter(s => !s.group_name);
@@ -436,8 +452,23 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                     const hasOverride = bookAvail.overrides.includes(ds);
                     const disabled = manualTime ? past : (past || blocked || (unavail && !hasOverride));
                     const sel = date && date.day === d && date.month === cM && date.year === cY;
-                    cells.push(<button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
-                      onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }} disabled={disabled}>{d}</button>);
+                    const count = slotCounts[ds];
+                    const dotColor = (disabled || manualTime) ? null
+                      : count === undefined ? null
+                      : count === 0 ? "var(--red)"
+                      : count <= 3 ? "#C9963E"
+                      : "var(--green)";
+                    cells.push(
+                      <button key={d}
+                        className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
+                        onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
+                        disabled={disabled}>
+                        <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, lineHeight: 1, width: "100%" }}>
+                          <span>{d}</span>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor || "transparent" }} />
+                        </span>
+                      </button>
+                    );
                   }
                   return cells;
                 })()}
