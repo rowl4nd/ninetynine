@@ -253,9 +253,10 @@ function WaitlistBookingForm({ prac, entry, token, onDone, onCancel }) {
         notes: "Booked from waitlist",
       }, token);
       // Now safe to remove from waitlist
-      await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + entry.id, {
+      const delRes = await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + entry.id, {
         method: "DELETE", headers: supabase.headers(token),
       });
+      if (!delRes.ok) throw new Error(await delRes.text());
       setDone(true);
     } catch (e) {
       console.error(e);
@@ -1658,7 +1659,8 @@ useEffect(() => {
   async function removeWaitlistEntry(id) {
     if (IS_DEMO) { setWaitlist(prev => prev.filter(w => w.id !== id)); return; }
     try {
-      await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + id, { method: "DELETE", headers: supabase.headers(auth.access_token) });
+      const res = await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + id, { method: "DELETE", headers: supabase.headers(auth.access_token) });
+      if (!res.ok) throw new Error(await res.text());
       setWaitlist(prev => prev.filter(w => w.id !== id));
     } catch (e) { console.error(e); alert("Couldn't remove that entry. Please try again."); }
   }
