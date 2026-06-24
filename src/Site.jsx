@@ -1462,6 +1462,21 @@ export function ClientPortal({ email, token }) {
   const [editDate, setEditDate] = useState(null);
   const [editTime, setEditTime] = useState(null);
   const [rescheduling, setRescheduling] = useState(false);
+  const [bookingWindowWeeks, setBookingWindowWeeks] = useState(9);
+
+  useEffect(() => {
+    if (!editingBooking?.practitioner_id) return;
+    
+    supabase.query("practitioners", {
+      filters: "&id=eq." + editingBooking.practitioner_id
+    }).then(rows => {
+      if (rows && rows[0]?.advance_booking_limit_weeks) {
+        setBookingWindowWeeks(rows[0].advance_booking_limit_weeks);
+      } else {
+        setBookingWindowWeeks(9); // Fallback if not configured
+      }
+    }).catch(() => setBookingWindowWeeks(9));
+  }, [editingBooking]);
 
   const { slots, loading: slotsLoading } = useAvailableSlots(
     editingBooking?.practitioner_id, editDate, editingBooking?.duration, editingBooking?.practitioner?.slot_interval || 30
@@ -1669,7 +1684,15 @@ const data = await res.json();
                         <div className="nn-cal-head">
                           <button className="nn-cal-btn" onClick={() => { if (cM === 0) { setCM(11); setCY(cY - 1); } else setCM(cM - 1); }}>‹</button>
                           <h3>{getMonthName(cM)} {cY}</h3>
-                          <button className="nn-cal-btn" onClick={() => { if (cM === 11) { setCM(0); setCY(cY + 1); } else setCM(cM + 1); }}>›</button>
+                          <button className="nn-cal-btn" onClick={() => {
+     if (cM === 11) { setCM(0); setCY(cY + 1); } else setCM(cM + 1);
+   }} disabled={(() => {
+     const max = new Date();
+     max.setDate(1);
+     // Blocks going further than the practitioner's rolling week limit allows
+     max.setMonth(max.getMonth() + Math.ceil(bookingWindowWeeks * 7 / 30));
+     return new Date(cY, cM, 1) >= max;
+   })()}>›</button>
                         </div>
                         <div className="nn-cal-weekdays">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <span key={d}>{d}</span>)}</div>
                         <div className="nn-cal-days">
@@ -1680,13 +1703,21 @@ const data = await res.json();
                             for (let i = 0; i < first; i++) cells.push(<div className="nn-cal-day nil" key={"e" + i} />);
                             for (let d = 1; d <= total; d++) {
                               const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
-                              const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                              const jsDay = new Date(cY, cM, d).getDay();
-                              const ds = dateStr(cY, cM, d);
-                              const unavail = editAvail.unavailable.has(jsDay);
-                              const blocked = editAvail.blocked.includes(ds);
-                              const hasOverride = editAvail.overrides.includes(ds);
-                              const disabled = past || blocked || (unavail && !hasOverride);
+const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+// Calculate the maximum rolling horizon date using your state variable
+const maxAllowedDate = new Date();
+maxAllowedDate.setDate(maxAllowedDate.getDate() + (bookingWindowWeeks * 7));
+const isTooFar = new Date(cY, cM, d) > maxAllowedDate;
+
+const jsDay = new Date(cY, cM, d).getDay();
+const ds = dateStr(cY, cM, d);
+const unavail = editAvail.unavailable.has(jsDay);
+const blocked = editAvail.blocked.includes(ds);
+const hasOverride = editAvail.overrides.includes(ds);
+
+// Added isTooFar here to disable dates past the rolling boundary
+const disabled = past || isTooFar || blocked || (unavail && !hasOverride);
                               const sel = editDate && editDate.day === d && editDate.month === cM && editDate.year === cY;
                               const count = editSlotCounts[ds];
                               const dotColor = disabled ? null
