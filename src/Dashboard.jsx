@@ -180,6 +180,217 @@ function ServiceCard({ svc, onEdit, onRemove }) {
 }
 
 // ============================================================
+// WAITLIST BOOKING FORM — place a waitlisted client into a slot
+// Option B: no service selection — the waitlist entry already carries
+// service_title, duration, price. Practitioner only picks date & time.
+// On success: insert booking (booked_by 'staff'), delete waitlist entry.
+// ============================================================
+
+function WaitlistBookingForm({ prac, entry, token, onDone, onCancel }) {
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [manualTime, setManualTime] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const now = new Date();
+  const [cM, setCM] = useState(now.getMonth());
+  const [cY, setCY] = useState(now.getFullYear());
+
+  const duration = entry.duration || 30;
+  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, duration, prac?.slot_interval || 30, 0);
+
+  const [bookAvail, setBookAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
+  useEffect(() => {
+    if (!prac || IS_DEMO) { setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }); return; }
+    const todayStr = new Date().toISOString().split("T")[0];
+    Promise.all([
+      supabase.query("availability", { filters: "&practitioner_id=eq." + prac.id + "&is_available=eq.false", token }),
+      supabase.query("blocked_dates", { select: "blocked_date", filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + todayStr + "&start_time=is.null", token }),
+      supabase.query("date_overrides", { select: "override_date", filters: "&practitioner_id=eq." + prac.id + "&override_date=gte." + todayStr, token }),
+    ]).then(([avail, blocked, overrides]) => {
+      setBookAvail({
+        unavailable: new Set(avail.map(r => [1,2,3,4,5,6,0][r.day_of_week])),
+        blocked: blocked.map(b => b.blocked_date),
+        overrides: overrides.map(o => o.override_date),
+      });
+    }).catch(() => setBookAvail({ unavailable: new Set(), blocked: [], overrides: [] }));
+  }, [prac, token]);
+
+  const [slotCounts, setSlotCounts] = useState({});
+  useEffect(() => {
+    if (!prac || IS_DEMO) { setSlotCounts({}); return; }
+    supabase.rpc("get_monthly_slot_counts", {
+      p_practitioner_id: prac.id,
+      p_year: cY,
+      p_month: cM + 1,
+      p_duration: duration,
+      p_interval: prac.slot_interval || 30,
+    }).then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.slot_date] = r.slot_count; });
+      setSlotCounts(map);
+    }).catch(() => setSlotCounts({}));
+  }, [prac, cM, cY, duration]);
+
+  async function handleSave() {
+    if (!date || !time) return;
+    setSaving(true);
+    try {
+      if (IS_DEMO) { setDone(true); setSaving(false); return; }
+      // Insert FIRST — only delete the waitlist entry if the booking succeeds.
+      await supabase.insert("bookings", {
+        practitioner_id: prac.id,
+        service_id: entry.service_id || null,
+        service_title: entry.service_title || "Appointment",
+        client_name: entry.client_name,
+        client_phone: entry.client_phone,
+        client_email: entry.client_email,
+        booking_date: dateStr(date.year, date.month, date.day),
+        booking_time: time + ":00",
+        duration: duration,
+        price: entry.price || 0,
+        booked_by: "staff",
+        notes: "Booked from waitlist",
+      }, token);
+      // Now safe to remove from waitlist
+      await fetch(SUPABASE_URL + "/rest/v1/waitlist?id=eq." + entry.id, {
+        method: "DELETE", headers: supabase.headers(token),
+      });
+      setDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("Error creating booking. The client is still on the waitlist. Please try again.");
+    }
+    setSaving(false);
+  }
+
+  if (done) {
+    return (
+      <div style={{ maxWidth: 500, padding: "48px 0" }}>
+        <div className="nn-success-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></div>
+        <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 28, fontWeight: 300, textAlign: "center", marginBottom: 10 }}>Booked in</h3>
+        <p style={{ textAlign: "center", color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, lineHeight: 1.6, marginBottom: 32 }}>
+          {entry.client_name} is booked in for {entry.service_title || "their appointment"} on {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)} at {time}, and has been removed from the waitlist. A confirmation email has been sent to them.
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <button onClick={onDone} style={{ padding: "14px 32px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "2px", textTransform: "uppercase" }}>Back to Bookings</button>
+        </div>
+      </div>
+    );
+  }
+
+  const H3 = ({ children }) => <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 400, marginBottom: 20 }}>{children}</h3>;
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300 }}>Book from waitlist</div>
+        <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--warm-gray)", fontFamily: "'Outfit',sans-serif" }}>✕ Cancel</button>
+      </div>
+
+      <div style={{ background: "var(--cream)", border: "1.5px solid var(--border)", padding: "16px 20px", marginBottom: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 12 }}>Placing this client</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>{entry.client_name}</div>
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{entry.service_title || "Appointment"} · {duration} min</div>
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{entry.client_phone}{entry.client_email ? " · " + entry.client_email : ""}</div>
+          </div>
+          {entry.price ? <span style={{ fontWeight: 600, color: "var(--gold)" }}>£{entry.price}</span> : null}
+        </div>
+      </div>
+
+      <H3>Pick a date &amp; time</H3>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", background: "var(--cream)", border: "1.5px solid var(--border)", marginBottom: 20, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>Custom time</div>
+          <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>Override hours, book any day, allow overlaps</div>
+        </div>
+        <button onClick={() => { setManualTime(o => !o); setTime(null); }}
+          style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: manualTime ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+          <span style={{ position: "absolute", top: 3, left: manualTime ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
+        <div className="nn-cal">
+          <div className="nn-cal-head">
+            <button className="nn-cal-btn" onClick={() => { if (cM === 0) { setCM(11); setCY(cY - 1); } else setCM(cM - 1); }}>‹</button>
+            <h3>{getMonthName(cM)} {cY}</h3>
+            <button className="nn-cal-btn" onClick={() => { if (cM === 11) { setCM(0); setCY(cY + 1); } else setCM(cM + 1); }}>›</button>
+          </div>
+          <div className="nn-cal-weekdays">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => <span key={d}>{d}</span>)}</div>
+          <div className="nn-cal-days">
+            {(() => {
+              const first = (new Date(cY, cM, 1).getDay() + 6) % 7;
+              const total = getDaysInMonth(cY, cM);
+              const cells = [];
+              for (let i = 0; i < first; i++) cells.push(<div className="nn-cal-day nil" key={"e" + i} />);
+              for (let d = 1; d <= total; d++) {
+                const isNow = d === now.getDate() && cM === now.getMonth() && cY === now.getFullYear();
+                const past = new Date(cY, cM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const jsDay = new Date(cY, cM, d).getDay();
+                const ds = dateStr(cY, cM, d);
+                const unavail = bookAvail.unavailable.has(jsDay);
+                const blocked = bookAvail.blocked.includes(ds);
+                const hasOverride = bookAvail.overrides.includes(ds);
+                const disabled = manualTime ? past : (past || blocked || (unavail && !hasOverride));
+                const sel = date && date.day === d && date.month === cM && date.year === cY;
+                const count = slotCounts[ds];
+                const dotColor = (disabled || manualTime) ? null
+                  : count === undefined ? null
+                  : count === 0 ? "var(--red)"
+                  : count <= 3 ? "#C9963E"
+                  : "var(--green)";
+                cells.push(
+                  <button key={d}
+                    className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
+                    onClick={() => { if (!disabled) { setDate({ day: d, month: cM, year: cY }); setTime(null); } }}
+                    disabled={disabled}>
+                    <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, lineHeight: 1, width: "100%" }}>
+                      <span>{d}</span>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor || "transparent" }} />
+                    </span>
+                  </button>
+                );
+              }
+              return cells;
+            })()}
+          </div>
+        </div>
+        {date && (
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 14, color: "var(--warm-gray)", marginBottom: 14, fontWeight: 300 }}>
+              {getDayName(date.year, date.month, date.day)} {date.day} {getMonthName(date.month)}
+            </div>
+            {manualTime ? (
+              <div>
+                <input type="time" value={time || ""} onChange={e => setTime(e.target.value || null)}
+                  style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", width: "100%" }} />
+                <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
+                  Manual time — availability and clashes aren't checked. {duration} min from the time you set.
+                </div>
+              </div>
+            ) : slotsLoading ? (
+              <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading times...</div>
+            ) : slots.length === 0 ? (
+              <div style={{ color: "var(--red)", fontSize: 14, fontWeight: 300 }}>No available slots. Try another day, or switch on Custom time.</div>
+            ) : (
+              <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="nn-booking-nav">
+        <button className="nn-btn-back" onClick={onCancel}>Cancel</button>
+        <button className="nn-btn nn-btn-gold" onClick={handleSave} disabled={!date || !time || saving} style={{ opacity: date && time && !saving ? 1 : .35 }}>
+          {saving ? "Booking..." : "Confirm Booking"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // STAFF BOOKING FORM
 // ============================================================
 
@@ -1233,6 +1444,7 @@ const [newOverrideStart, setNewOverrideStart] = useState("");
 const [newOverrideEnd, setNewOverrideEnd] = useState("");
 const [overrideSaving, setOverrideSaving] = useState(false);
   const [showStaffBooking, setShowStaffBooking] = useState(false);
+  const [bookingFromWaitlist, setBookingFromWaitlist] = useState(null);
   const [staffBookServices, setStaffBookServices] = useState([]);
  const [weekBlocks, setWeekBlocks] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
@@ -1632,7 +1844,15 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
 
       {tab === "bookings" && (
         <div>
-          {showStaffBooking ? (
+          {bookingFromWaitlist ? (
+            <WaitlistBookingForm prac={prac} entry={bookingFromWaitlist} token={auth.access_token}
+              onDone={() => {
+                setBookingFromWaitlist(null);
+                refreshBookings();
+                setWaitlist(prev => prev.filter(w => w.id !== bookingFromWaitlist.id));
+              }}
+              onCancel={() => setBookingFromWaitlist(null)} />
+          ) : showStaffBooking ? (
             <StaffBookingForm prac={prac} services={staffBookServices} token={auth.access_token}
               onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
               onCancel={() => setShowStaffBooking(false)} />
@@ -1677,10 +1897,16 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                                 <span style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>{w.client_phone}</span>
                               </div>
                             </div>
-                            <button onClick={() => { if (window.confirm("Remove " + w.client_name + " from the waitlist?")) removeWaitlistEntry(w.id); }}
-                              style={{ padding: "6px 14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif", flexShrink: 0 }}>
-                              Remove
-                            </button>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => setBookingFromWaitlist(w)}
+                                style={{ padding: "6px 14px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>
+                                Add
+                              </button>
+                              <button onClick={() => { if (window.confirm("Remove " + w.client_name + " from the waitlist?")) removeWaitlistEntry(w.id); }}
+                                style={{ padding: "6px 14px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
