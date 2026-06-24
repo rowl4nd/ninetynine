@@ -1466,7 +1466,22 @@ export function ClientPortal({ email, token }) {
   const { slots, loading: slotsLoading } = useAvailableSlots(
     editingBooking?.practitioner_id, editDate, editingBooking?.duration, editingBooking?.practitioner?.slot_interval || 30
   );
-
+  
+const [editSlotCounts, setEditSlotCounts] = useState({});
+  useEffect(() => {
+    if (!editingBooking) { setEditSlotCounts({}); return; }
+    supabase.rpc("get_monthly_slot_counts", {
+      p_practitioner_id: editingBooking.practitioner_id,
+      p_year: cY,
+      p_month: cM + 1,
+      p_duration: editingBooking.duration || 30,
+      p_interval: editingBooking.practitioner?.slot_interval || 30,
+    }).then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.slot_date] = r.slot_count; });
+      setEditSlotCounts(map);
+    }).catch(() => setEditSlotCounts({}));
+  }, [editingBooking, cM, cY]);
   const [editAvail, setEditAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
   useEffect(() => {
     if (!editingBooking) { setEditAvail({ unavailable: new Set(), blocked: [], overrides: [] }); return; }
@@ -1673,11 +1688,22 @@ const data = await res.json();
                               const hasOverride = editAvail.overrides.includes(ds);
                               const disabled = past || blocked || (unavail && !hasOverride);
                               const sel = editDate && editDate.day === d && editDate.month === cM && editDate.year === cY;
+                              const count = editSlotCounts[ds];
+                              const dotColor = disabled ? null
+                                : count === undefined ? null
+                                : count === 0 ? "var(--red)"
+                                : count <= 3 ? "#C9963E"
+                                : "var(--green)";
                               cells.push(
                                 <button key={d}
                                   className={"nn-cal-day" + (sel ? " on" : "") + (disabled ? " off" : "") + (isNow ? " now" : "")}
                                   onClick={() => { if (!disabled) { setEditDate({ day: d, month: cM, year: cY }); setEditTime(null); } }}
-                                  disabled={disabled}>{d}</button>
+                                  disabled={disabled}>
+                                  <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, lineHeight: 1, width: "100%" }}>
+                                    <span>{d}</span>
+                                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor || "transparent" }} />
+                                  </span>
+                                </button>
                               );
                             }
                             return cells;
