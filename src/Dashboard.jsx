@@ -1417,6 +1417,213 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 }
 
 // ============================================================
+// REPORTS
+// ============================================================
+
+const GBP = (n) => "£" + Number(n || 0).toLocaleString("en-GB", { maximumFractionDigits: 0 });
+const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function periodRange(period, customFrom, customTo) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (period === "daily") return { from: iso(today), to: iso(today) };
+  if (period === "weekly") {
+    const day = today.getDay();
+    const start = new Date(today); start.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    return { from: iso(start), to: iso(end) };
+  }
+  if (period === "monthly") {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { from: iso(start), to: iso(end) };
+  }
+  if (period === "12monthly") {
+    const start = new Date(today); start.setMonth(start.getMonth() - 11); start.setDate(1);
+    return { from: iso(start), to: iso(today) };
+  }
+  if (period === "yearly") {
+    return { from: `${today.getFullYear()}-01-01`, to: `${today.getFullYear()}-12-31` };
+  }
+  // custom
+  return { from: customFrom || iso(today), to: customTo || iso(today) };
+}
+
+function ReportTab({ prac, token }) {
+  const [period, setPeriod] = useState("monthly");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [scope, setScope] = useState(prac?.is_owner ? "__all__" : (prac?.id || ""));
+  const [practitioners, setPractitioners] = useState([]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Owner: load practitioner list for the scope dropdown
+  useEffect(() => {
+    if (!prac?.is_owner || IS_DEMO) return;
+    supabase.query("practitioners", { select: "id,name", filters: "&is_active=eq.true&order=name", token })
+      .then(setPractitioners).catch(console.error);
+  }, [prac?.is_owner]);
+
+  const range = periodRange(period, customFrom, customTo);
+
+  useEffect(() => {
+    if (IS_DEMO) {
+      setData({
+        summary: { total_bookings: 42, completed: 38, upcoming: 4, cancelled: 3, no_show: 1, hours_booked: 51.5, booked_value: 1840, avg_value: 44, cancelled_value: 145 },
+        daily: [], by_weekday: [{ dow: 1, bookings: 9, value: 380 }, { dow: 3, bookings: 12, value: 520 }, { dow: 5, bookings: 14, value: 610 }, { dow: 6, bookings: 7, value: 330 }],
+        top_services: [{ service: "Gel Manicure", bookings: 18, value: 540 }, { service: "BIAB Overlay", bookings: 11, value: 418 }, { service: "Luxury Facial", bookings: 6, value: 330 }],
+      });
+      return;
+    }
+    if (period === "custom" && (!customFrom || !customTo)) { setData(null); return; }
+    setLoading(true); setErr("");
+    supabase.rpc("get_practitioner_report", {
+      p_practitioner_id: prac?.is_owner ? (scope === "__all__" ? null : scope) : null,
+      p_from: range.from,
+      p_to: range.to,
+    }, token).then((res) => {
+      if (res?.error) { setErr("Couldn't load report."); setData(null); }
+      else setData(res);
+      setLoading(false);
+    }).catch((e) => { console.error(e); setErr("Couldn't load report."); setLoading(false); });
+  }, [period, customFrom, customTo, scope, prac?.id]);
+
+  const s = data?.summary;
+
+  // 12-monthly: bucket the daily rows into months for the trend
+  const monthBuckets = (() => {
+    if (period !== "12monthly" || !data?.daily?.length) return [];
+    const map = {};
+    data.daily.forEach(r => {
+      const key = r.day.slice(0, 7); // YYYY-MM
+      if (!map[key]) map[key] = { key, bookings: 0, value: 0, hours: 0 };
+      map[key].bookings += r.bookings; map[key].value += Number(r.value); map[key].hours += Number(r.hours);
+    });
+    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+  })();
+  const maxMonthVal = Math.max(1, ...monthBuckets.map(m => m.value));
+  const maxWdBookings = Math.max(1, ...(data?.by_weekday || []).map(w => w.bookings));
+
+  const PERIODS = [
+    ["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"],
+    ["12monthly", "12-Monthly"], ["yearly", "Yearly"], ["custom", "Custom"],
+  ];
+
+  const rangeLabel = (() => {
+    const f = new Date(range.from + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const t = new Date(range.to + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    return range.from === range.to ? f : `${f} – ${t}`;
+  })();
+
+  const Card = ({ label, value, sub, accent }) => (
+    <div style={{ padding: "18px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", flex: "1 1 140px", minWidth: 130 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 400, color: accent || "var(--charcoal)", lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      {prac?.is_owner && (
+        <div style={{ marginBottom: 24 }}>
+          <label className="nn-input-label">Viewing data for</label>
+          <select value={scope} onChange={e => setScope(e.target.value)}
+            style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", color: "var(--charcoal)", cursor: "pointer", minWidth: 220 }}>
+            <option value="__all__">Whole salon</option>
+            {practitioners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        {PERIODS.map(([val, lbl]) => (
+          <button key={val} onClick={() => setPeriod(val)}
+            style={{ padding: "8px 16px", background: period === val ? "var(--charcoal)" : "none", color: period === val ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (period === val ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase" }}>{lbl}</button>
+        ))}
+      </div>
+
+      {period === "custom" && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 16 }}>
+          <div><label className="nn-input-label">From</label><input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: "10px 14px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none" }} /></div>
+          <div><label className="nn-input-label">To</label><input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ padding: "10px 14px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none" }} /></div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>{rangeLabel}</div>
+
+      {loading ? (
+        <div style={{ color: "var(--warm-gray)", padding: 40, textAlign: "center" }}>Loading...</div>
+      ) : err ? (
+        <div style={{ color: "var(--red)", padding: 20 }}>{err}</div>
+      ) : !s ? (
+        <div style={{ color: "var(--warm-gray)", padding: 20, fontWeight: 300 }}>{period === "custom" ? "Pick a date range to see your report." : "No data."}</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <Card label="Bookings" value={s.completed + s.upcoming} sub={`${s.completed} done · ${s.upcoming} upcoming`} />
+            <Card label="Hours" value={s.hours_booked} sub="booked" />
+            <Card label="Booked value" value={GBP(s.booked_value)} accent="var(--gold)" sub={`avg ${GBP(s.avg_value)}`} />
+            <Card label="Cancelled" value={s.cancelled + s.no_show} sub={`${GBP(s.cancelled_value)} lost`} accent="var(--red)" />
+          </div>
+          <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 36 }}>
+            Booked value is the total treatment price for confirmed and completed appointments. Payment is taken in salon.
+          </p>
+
+          {period === "12monthly" && monthBuckets.length > 0 && (
+            <div style={{ marginBottom: 36 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 400, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>Monthly trend</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 160 }}>
+                {monthBuckets.map(m => (
+                  <div key={m.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: 10, color: "var(--warm-gray)" }}>{GBP(m.value)}</div>
+                    <div title={`${m.bookings} bookings`} style={{ width: "100%", maxWidth: 28, height: Math.max(2, (m.value / maxMonthVal) * 110), background: "var(--gold)", borderRadius: "2px 2px 0 0" }} />
+                    <div style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: ".3px" }}>{new Date(m.key + "-01T12:00:00").toLocaleDateString("en-GB", { month: "short" })}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.by_weekday?.length > 0 && (
+            <div style={{ marginBottom: 36 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 400, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>By day of week</div>
+              {WD.map((name, i) => {
+                const row = data.by_weekday.find(w => w.dow === i + 1);
+                const b = row?.bookings || 0;
+                return (
+                  <div key={name} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                    <div style={{ width: 36, fontSize: 12, color: "var(--warm-gray)", fontWeight: 500 }}>{name}</div>
+                    <div style={{ flex: 1, height: 18, background: "var(--cream)", border: "1px solid var(--border)", position: "relative" }}>
+                      <div style={{ position: "absolute", inset: 0, width: `${(b / maxWdBookings) * 100}%`, background: "var(--gold)", opacity: .85 }} />
+                    </div>
+                    <div style={{ width: 90, fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, textAlign: "right" }}>{b} · {GBP(row?.value)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {data.top_services?.length > 0 && (
+            <div>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 400, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>Top services</div>
+              {data.top_services.map((sv, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 6 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{sv.service}</div>
+                  <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300 }}>{sv.bookings} bookings · <span style={{ color: "var(--gold)", fontWeight: 500 }}>{GBP(sv.value)}</span></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // DASHBOARD
 // ============================================================
 
@@ -1842,6 +2049,7 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
         <button className={"nn-dash-tab" + (tab === "bookings" ? " on" : "")} onClick={() => setTab("bookings")}>Bookings</button>
         <button className={"nn-dash-tab" + (tab === "services" ? " on" : "")} onClick={() => setTab("services")}>My Services</button>
         <button className={"nn-dash-tab" + (tab === "schedule" ? " on" : "")} onClick={() => setTab("schedule")}>My Schedule</button>
+        <button className={"nn-dash-tab" + (tab === "reports" ? " on" : "")} onClick={() => setTab("reports")}>Reports</button>
       </div>
 
       {tab === "bookings" && (
@@ -2352,6 +2560,8 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
           </p>
         </div>
       )}
+
+      {tab === "reports" && <ReportTab prac={prac} token={auth.access_token} />}
     </div>
   );
 }
