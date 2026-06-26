@@ -2508,6 +2508,14 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
                 <button onClick={addBlockedDate} disabled={!newBlock || !newBlockRangeEnd || blockSaving} style={{ padding: "8px 16px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: newBlock && newBlockRangeEnd && !blockSaving ? 1 : .35, flexShrink: 0, alignSelf: "flex-end" }}>Block</button>
               </div>
             ) : blockType === "full" ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Date</label>
+                  <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
+                </div>
+                <button onClick={addBlockedDate} disabled={!newBlock || blockSaving} style={{ padding: "8px 16px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: newBlock && !blockSaving ? 1 : .35, flexShrink: 0, alignSelf: "flex-end" }}>Block</button>
+              </div>
+            ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
