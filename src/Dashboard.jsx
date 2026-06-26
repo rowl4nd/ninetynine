@@ -2134,60 +2134,6 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
-          {!showServiceForm && !editingCustomService && (
-            <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
-              <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
-            </button>
-          )}
-          {showServiceForm && (
-            <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
-              onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
-          )}
-          {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
-            <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, paddingBottom: 16 }}>No services yet — tap above to add your first.</div>
-          ) : (
-            <div style={{ marginBottom: 24 }}>
-              {dashGroups.map(group => (
-                <div key={group} style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>{group}</div>
-                  {customServices.filter(s => s.group_name === group).map(svc => (
-                    <div key={svc.id}>
-                      {editingCustomService?.id === svc.id ? (
-                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
-                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)} />
-                      ) : (
-                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
-                          onRemove={async () => { await supabase.update("custom_services", { is_active: false }, "id=eq." + svc.id, auth.access_token); setCustomServices(prev => prev.filter(s => s.id !== svc.id)); }} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {dashUngrouped.length > 0 && (
-                <div>
-                  {dashGroups.length > 0 && <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>Other</div>}
-                  {dashUngrouped.map(svc => (
-                    <div key={svc.id}>
-                      {editingCustomService?.id === svc.id ? (
-                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
-                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)} />
-                      ) : (
-                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
-                          onRemove={async () => { await supabase.update("custom_services", { is_active: false }, "id=eq." + svc.id, auth.access_token); setCustomServices(prev => prev.filter(s => s.id !== svc.id)); }} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "schedule" && (
-        <div style={{ maxWidth: 680 }}>
-          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
-
           {/* ── Stripe Connect ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Payments
@@ -2318,6 +2264,59 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
               Deposits are refunded automatically if a client cancels more than 48 hours before their appointment.
             </p>
           )}
+          {!showServiceForm && !editingCustomService && (
+            <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
+              <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
+            </button>
+          )}
+          {showServiceForm && (
+            <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={null} existingGroups={existingGroups}
+              onSave={() => { setShowServiceForm(false); loadServices(); }} onCancel={() => setShowServiceForm(false)} />
+          )}
+          {customServices.length === 0 && !showServiceForm && !editingCustomService ? (
+            <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300, paddingBottom: 16 }}>No services yet — tap above to add your first.</div>
+          ) : (
+            <div style={{ marginBottom: 24 }}>
+              {dashGroups.map(group => (
+                <div key={group} style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>{group}</div>
+                  {customServices.filter(s => s.group_name === group).map(svc => (
+                    <div key={svc.id}>
+                      {editingCustomService?.id === svc.id ? (
+                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
+                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)} />
+                      ) : (
+                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
+                          onRemove={async () => { await supabase.update("custom_services", { is_active: false }, "id=eq." + svc.id, auth.access_token); setCustomServices(prev => prev.filter(s => s.id !== svc.id)); }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {dashUngrouped.length > 0 && (
+                <div>
+                  {dashGroups.length > 0 && <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2.5px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>Other</div>}
+                  {dashUngrouped.map(svc => (
+                    <div key={svc.id}>
+                      {editingCustomService?.id === svc.id ? (
+                        <ServiceForm practitionerId={prac.id} token={auth.access_token} existingService={editingCustomService} existingGroups={existingGroups}
+                          onSave={() => { setEditingCustomService(null); loadServices(); }} onCancel={() => setEditingCustomService(null)} />
+                      ) : (
+                        <ServiceCard svc={svc} onEdit={() => { setEditingCustomService(svc); setShowServiceForm(false); }}
+                          onRemove={async () => { await supabase.update("custom_services", { is_active: false }, "id=eq." + svc.id, auth.access_token); setCustomServices(prev => prev.filter(s => s.id !== svc.id)); }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "schedule" && (
+        <div style={{ maxWidth: 680 }}>
+          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
 
           {/* ── Weekly Hours ── */}
           <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
