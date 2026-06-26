@@ -1662,6 +1662,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const [statusRefreshing, setStatusRefreshing] = useState(false);
   const [depositPercentInput, setDepositPercentInput] = useState("");
   const [depositThresholdInput, setDepositThresholdInput] = useState("");
+  const [depositsOpen, setDepositsOpen] = useState(false);
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   // Handle Stripe Connect return
@@ -2069,11 +2070,14 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
         </div>
       </div>
 
-      <div className="nn-dash-tabs">
-        <button className={"nn-dash-tab" + (tab === "bookings" ? " on" : "")} onClick={() => setTab("bookings")}>Bookings</button>
-        <button className={"nn-dash-tab" + (tab === "services" ? " on" : "")} onClick={() => setTab("services")}>My Services</button>
-        <button className={"nn-dash-tab" + (tab === "schedule" ? " on" : "")} onClick={() => setTab("schedule")}>My Schedule</button>
-        <button className={"nn-dash-tab" + (tab === "reports" ? " on" : "")} onClick={() => setTab("reports")}>Reports</button>
+      <div style={{ marginBottom: 32 }}>
+        <select value={tab} onChange={e => setTab(e.target.value)}
+          style={{ width: "100%", maxWidth: 320, padding: "14px 18px", border: "1.5px solid var(--charcoal)", background: "var(--charcoal)", color: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", outline: "none", cursor: "pointer" }}>
+          <option value="bookings">Bookings</option>
+          <option value="services">My Services</option>
+          <option value="schedule">My Schedule</option>
+          <option value="reports">Reports</option>
+        </select>
       </div>
 
       {tab === "bookings" && (
@@ -2158,136 +2162,130 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>
             Add and manage your own services. Clients will see these when booking with you.
           </p>
-          {/* ── Stripe Connect ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Payments
-          </div>
-          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
-            Connect your Stripe account to accept booking deposits. Deposits go directly to your account.
-          </p>
-          <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 12 }}>
-            {stripeConnected ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>Stripe connected</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Account ID: {prac.stripe_account_id}</div>
-                </div>
-                <button onClick={handleStripeConnect} disabled={stripeConnecting}
-                  style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: stripeConnecting ? .5 : 1 }}>
-                  {stripeConnecting ? "Loading..." : "Manage Account"}
-                </button>
-              </div>
-            ) : prac?.stripe_account_id ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#C9963E", flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>Setup incomplete</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
-                    Your Stripe account isn't ready to take payments yet. Finish onboarding, then refresh.
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button onClick={refreshStripeStatus} disabled={statusRefreshing}
-                    style={{ padding: "12px 18px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: statusRefreshing ? .5 : 1 }}>
-                    {statusRefreshing ? "Checking..." : "Refresh"}
-                  </button>
-                  <button onClick={handleStripeConnect} disabled={stripeConnecting}
-                    style={{ padding: "12px 18px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1 }}>
-                    {stripeConnecting ? "Loading..." : "Finish Setup"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No Stripe account connected</div>
-                  <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Connect to start taking deposits from clients</div>
-                </div>
-                <button onClick={handleStripeConnect} disabled={stripeConnecting}
-                  style={{ padding: "12px 24px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1, flexShrink: 0 }}>
-                  {stripeConnecting ? "Loading..." : "Connect Stripe"}
-                </button>
-              </div>
-            )}
-          </div>
-          <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 40 }}>
-            You'll be taken to Stripe to set up your account. This takes about 5 minutes. Once connected, you can enable deposits below.
-          </p>
-
-          {/* ── Deposits ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Deposits
-          </div>
-          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
-            Require clients to pay a percentage deposit when booking. Deposits only apply to bookings over your minimum, and are deducted from the total on the day. Full refund if cancelled more than 48 hours before the appointment.
-          </p>
-          <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8, opacity: stripeConnected ? 1 : .45 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prac?.deposits_enabled ? 20 : 0 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Require deposit</div>
-                <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
-                  {stripeConnected ? "Clients pay a percentage when booking" : "Connect Stripe above to enable deposits"}
-                </div>
-              </div>
-              <button
-                disabled={!stripeConnected || depositSaving}
-                onClick={() => saveDepositSettings(!prac?.deposits_enabled, depositPercentInput, depositThresholdInput)}
-                style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: stripeConnected ? "pointer" : "not-allowed", background: prac?.deposits_enabled ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
-                <span style={{ position: "absolute", top: 3, left: prac?.deposits_enabled ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
-              </button>
+          {/* ── Deposits (collapsible) ── */}
+          <div onClick={() => setDepositsOpen(o => !o)}
+            style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: depositsOpen ? 20 : 32, paddingBottom: 12, borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block", flexShrink: 0 }} />
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400 }}>Deposits</div>
+            <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, fontFamily: "'Outfit',sans-serif" }}>
+              {stripeConnected
+                ? "Stripe connected · deposits " + (prac?.deposits_enabled ? "on" : "off")
+                : prac?.stripe_account_id ? "Stripe setup incomplete" : "Stripe not connected"}
             </div>
-            {prac?.deposits_enabled && (
-              <div style={{ paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Deposit percentage</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
-                    <input
-                      type="number" min="1" max="100"
-                      value={depositPercentInput}
-                      onChange={e => setDepositPercentInput(e.target.value)}
-                      onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
-                      style={{ width: 44, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
-                    />
-                    <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>%</span>
+            <span style={{ marginLeft: "auto", fontSize: 14, color: "var(--warm-gray)", transform: depositsOpen ? "rotate(90deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>›</span>
+          </div>
+
+          {depositsOpen && (
+            <div style={{ marginBottom: 32 }}>
+              <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
+                Connect your Stripe account to accept booking deposits. Deposits go directly to your account, and are deducted from the total on the day. Full refund if a client cancels more than 48 hours before the appointment.
+              </p>
+              <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 16 }}>
+                {stripeConnected ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }} />
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>Stripe connected</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Account ID: {prac.stripe_account_id}</div>
+                    </div>
+                    <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                      style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: stripeConnecting ? .5 : 1 }}>
+                      {stripeConnecting ? "Loading..." : "Manage Account"}
+                    </button>
                   </div>
-                  <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>of the total</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Only on bookings over</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
-                    <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>£</span>
-                    <input
-                      type="number" min="0" max="500"
-                      value={depositThresholdInput}
-                      onChange={e => setDepositThresholdInput(e.target.value)}
-                      onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
-                      style={{ width: 56, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }}
-                    />
+                ) : prac?.stripe_account_id ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#C9963E", flexShrink: 0 }} />
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>Setup incomplete</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
+                        Your Stripe account isn't ready to take payments yet. Finish onboarding, then refresh.
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <button onClick={refreshStripeStatus} disabled={statusRefreshing}
+                        style={{ padding: "12px 18px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)", opacity: statusRefreshing ? .5 : 1 }}>
+                        {statusRefreshing ? "Checking..." : "Refresh"}
+                      </button>
+                      <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                        style={{ padding: "12px 18px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1 }}>
+                        {stripeConnecting ? "Loading..." : "Finish Setup"}
+                      </button>
+                    </div>
                   </div>
-                  <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>no deposit below this</span>
-                </div>
-                {prac?.deposit_percent && (
-                  <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, lineHeight: 1.6 }}>
-                    e.g. a £50 booking would take a £{Math.ceil(50 * (parseInt(depositPercentInput) || 20) / 100)} deposit. Rounded up to the nearest pound.
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No Stripe account connected</div>
+                      <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Connect to start taking deposits from clients</div>
+                    </div>
+                    <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                      style={{ padding: "12px 24px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: stripeConnecting ? .5 : 1, flexShrink: 0 }}>
+                      {stripeConnecting ? "Loading..." : "Connect Stripe"}
+                    </button>
                   </div>
                 )}
-                {depositSaving && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Saving...</span>}
               </div>
-            )}
+
+              <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", opacity: stripeConnected ? 1 : .45 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prac?.deposits_enabled ? 20 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Require deposit</div>
+                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>
+                      {stripeConnected ? "Clients pay a percentage when booking" : "Connect Stripe above to enable deposits"}
+                    </div>
+                  </div>
+                  <button
+                    disabled={!stripeConnected || depositSaving}
+                    onClick={() => saveDepositSettings(!prac?.deposits_enabled, depositPercentInput, depositThresholdInput)}
+                    style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: stripeConnected ? "pointer" : "not-allowed", background: prac?.deposits_enabled ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                    <span style={{ position: "absolute", top: 3, left: prac?.deposits_enabled ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+                  </button>
+                </div>
+                {prac?.deposits_enabled && (
+                  <div style={{ paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Deposit percentage</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
+                        <input type="number" min="1" max="100" value={depositPercentInput}
+                          onChange={e => setDepositPercentInput(e.target.value)}
+                          onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
+                          style={{ width: 44, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }} />
+                        <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>%</span>
+                      </div>
+                      <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>of the total</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, fontWeight: 300, color: "var(--warm-gray)", width: 130 }}>Only on bookings over</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1.5px solid var(--border)", background: "var(--cream)", padding: "8px 12px" }}>
+                        <span style={{ fontSize: 15, fontWeight: 500, color: "var(--warm-gray)" }}>£</span>
+                        <input type="number" min="0" max="500" value={depositThresholdInput}
+                          onChange={e => setDepositThresholdInput(e.target.value)}
+                          onBlur={() => saveDepositSettings(true, depositPercentInput, depositThresholdInput)}
+                          style={{ width: 56, border: "none", background: "transparent", fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 500, outline: "none", color: "var(--charcoal)" }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>no deposit below this</span>
+                    </div>
+                    {prac?.deposit_percent && (
+                      <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, lineHeight: 1.6 }}>
+                        e.g. a £50 booking would take a £{Math.ceil(50 * (parseInt(depositPercentInput) || 20) / 100)} deposit. Rounded up to the nearest pound.
+                      </div>
+                    )}
+                    {depositSaving && <span style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300 }}>Saving...</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Services ── */}
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Services
           </div>
-          {!stripeConnected && (
-            <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 40 }}>Connect Stripe above to enable deposits.</p>
-          )}
-          {stripeConnected && (
-            <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 40 }}>
-              Deposits are refunded automatically if a client cancels more than 48 hours before their appointment.
-            </p>
-          )}
           {!showServiceForm && !editingCustomService && (
             <button onClick={() => setShowServiceForm(true)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "none", border: "1.5px dashed var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, color: "var(--charcoal)", width: "100%", marginBottom: 24 }}>
               <span style={{ fontSize: 18, color: "var(--gold)", lineHeight: 1 }}>+</span>Add a service
