@@ -1627,6 +1627,17 @@ function ReportTab({ prac, token }) {
 // DASHBOARD
 // ============================================================
 
+function CollapsibleHeader({ title, open, onToggle }) {
+  return (
+    <div onClick={onToggle}
+      style={{ display: "flex", alignItems: "center", gap: 12, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+      <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block", flexShrink: 0 }} />
+      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400 }}>{title}</div>
+      <span style={{ marginLeft: "auto", fontSize: 14, color: "var(--warm-gray)", transform: open ? "rotate(90deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>›</span>
+    </div>
+  );
+}
+
 export default function Dashboard({ onBack }) {
   const [auth, setAuth] = useState(null);
   const [prac, setPrac] = useState(null);
@@ -1663,6 +1674,7 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const [depositPercentInput, setDepositPercentInput] = useState("");
   const [depositThresholdInput, setDepositThresholdInput] = useState("");
   const [depositsOpen, setDepositsOpen] = useState(false);
+  const [schedOpen, setSchedOpen] = useState({});
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   // Handle Stripe Connect return
@@ -2341,9 +2353,8 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
 
           {/* ── Weekly Hours ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Weekly Hours
-          </div>
+          <CollapsibleHeader title="Weekly Hours" open={schedOpen.hours} onToggle={() => setSchedOpen(o => ({ ...o, hours: !o.hours }))} />
+          {schedOpen.hours && <>
           {availability.map((row, i) => (
             <div key={i} style={{ marginBottom: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: row.is_available ? "var(--warm-white)" : "transparent", border: "1.5px solid var(--border)", opacity: row.is_available ? 1 : .5, transition: "all .2s" }}>
@@ -2395,11 +2406,11 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               )}
             </div>
           ))}
+          </>}
 
           {/* ── Booking Window ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Booking Window
-          </div>
+          <CollapsibleHeader title="Booking Window" open={schedOpen.window} onToggle={() => setSchedOpen(o => ({ ...o, window: !o.window }))} />
+          {schedOpen.window && <>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How far ahead can clients book? Dates beyond this window will not be available.</p>
           <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Clients can book up to</span>
@@ -2419,11 +2430,11 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
             </select>
             <span style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300 }}>in advance</span>
           </div>
+          </>}
 
-          {/* ── Blocked Dates ── */}
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Custom Hours
-          </div>
+          {/* ── Custom Hours ── */}
+          <CollapsibleHeader title="Custom Hours" open={schedOpen.custom} onToggle={() => setSchedOpen(o => ({ ...o, custom: !o.custom }))} />
+          {schedOpen.custom && <>
           <p style={{ fontSize:14, color:"var(--warm-gray)", fontWeight:300, marginBottom:20, lineHeight:1.7 }}>Override your usual hours for a specific date — useful after a holiday or for an unusually long day.</p>
           <div style={{ marginBottom:24 }}>
             <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end" }}>
@@ -2483,9 +2494,11 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               ))}
             </div>
           )}
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, margin:"40px 0 20px", paddingBottom:12, borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ width:20, height:1.5, background:"var(--gold)", display:"inline-block" }}/>Blocked Dates
-          </div>
+          </>}
+
+          {/* ── Blocked Dates ── */}
+          <CollapsibleHeader title="Blocked Dates" open={schedOpen.blocked} onToggle={() => setSchedOpen(o => ({ ...o, blocked: !o.blocked }))} />
+          {schedOpen.blocked && <>
           <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>Block a full day off, or just specific hours within a day.</p>
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -2548,11 +2561,11 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               </div>
             ))
           )}
+          </>}
 
           {/* ── Booking Slots ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Booking Slots
-          </div>
+          <CollapsibleHeader title="Booking Slots" open={schedOpen.slots} onToggle={() => setSchedOpen(o => ({ ...o, slots: !o.slots }))} />
+          {schedOpen.slots && <>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How often should available time slots appear in the booking calendar?</p>
           <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
             <span style={{ fontSize: 14, fontWeight: 500, marginRight: 8 }}>Show slots every</span>
@@ -2572,11 +2585,11 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               }}>{mins} min</button>
             ))}
           </div>
+          </>}
 
           {/* ── Calendar Sync ── */}
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 400, margin: "40px 0 20px", paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 20, height: 1.5, background: "var(--gold)", display: "inline-block" }} />Calendar Sync
-          </div>
+          <CollapsibleHeader title="Calendar Sync" open={schedOpen.sync} onToggle={() => setSchedOpen(o => ({ ...o, sync: !o.sync }))} />
+          {schedOpen.sync && <>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7, marginBottom: 20 }}>Subscribe to your personal calendar feed to see all your bookings in Google Calendar or Apple Calendar.</p>
           <div style={{ padding: "20px 24px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 12 }}>
             <div style={{ fontSize: 12, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 10 }}>Your calendar link</div>
@@ -2592,6 +2605,7 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
             <strong>Google Calendar:</strong> Open Google Calendar → Other calendars → + → From URL → paste link<br />
             <strong>Apple Calendar:</strong> File → New Calendar Subscription → paste link
           </p>
+          </>}
         </div>
       )}
 
