@@ -2352,6 +2352,54 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
         <div style={{ maxWidth: 680 }}>
           <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 32, lineHeight: 1.7 }}>Set your working days and hours. Block out specific dates or time ranges for holidays or days off.</p>
 
+{/* ── Booking Window ── */}
+          <CollapsibleHeader title="Booking Window" open={schedOpen.window} onToggle={() => setSchedOpen(o => ({ ...o, window: !o.window }))} />
+          {schedOpen.window && <>
+          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How far ahead can clients book? Dates beyond this window will not be available.</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Clients can book up to</span>
+            <select value={prac?.booking_window_weeks || 8}
+              onChange={async e => {
+                const weeks = parseInt(e.target.value);
+                if (IS_DEMO) return;
+                try {
+                  await supabase.update("practitioners", { booking_window_weeks: weeks }, "id=eq." + prac.id, auth.access_token);
+                  setPrac(prev => ({ ...prev, booking_window_weeks: weeks }));
+                } catch (err) { console.error(err); }
+              }}
+              style={{ padding: "10px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
+              {Array.from({ length: 16 }, (_, i) => i + 1).map(w => (
+                <option key={w} value={w}>{w} week{w !== 1 ? "s" : ""}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300 }}>in advance</span>
+          </div>
+          </>}
+
+          {/* ── Booking Slots ── */}
+          <CollapsibleHeader title="Booking Slots" open={schedOpen.slots} onToggle={() => setSchedOpen(o => ({ ...o, slots: !o.slots }))} />
+          {schedOpen.slots && <>
+          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How often should available time slots appear in the booking calendar?</p>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, marginRight: 8 }}>Show slots every</span>
+            {[15, 30, 60].map(mins => (
+              <button key={mins} onClick={async () => {
+                if (IS_DEMO) return;
+                try {
+                  await supabase.update("practitioners", { slot_interval: mins }, "id=eq." + prac.id, auth.access_token);
+                  setPrac(prev => ({ ...prev, slot_interval: mins }));
+                } catch (e) { console.error(e); }
+              }} style={{
+                padding: "10px 20px",
+                background: (prac?.slot_interval || 30) === mins ? "var(--charcoal)" : "none",
+                color: (prac?.slot_interval || 30) === mins ? "var(--cream)" : "var(--charcoal)",
+                border: (prac?.slot_interval || 30) === mins ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)",
+                cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, transition: "all .2s"
+              }}>{mins} min</button>
+            ))}
+          </div>
+          </>}
+          
           {/* ── Weekly Hours ── */}
           <CollapsibleHeader title="Weekly Hours" open={schedOpen.hours} onToggle={() => setSchedOpen(o => ({ ...o, hours: !o.hours }))} />
           {schedOpen.hours && <>
@@ -2406,30 +2454,6 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               )}
             </div>
           ))}
-          </>}
-
-          {/* ── Booking Window ── */}
-          <CollapsibleHeader title="Booking Window" open={schedOpen.window} onToggle={() => setSchedOpen(o => ({ ...o, window: !o.window }))} />
-          {schedOpen.window && <>
-          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How far ahead can clients book? Dates beyond this window will not be available.</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
-            <span style={{ fontSize: 14, fontWeight: 500 }}>Clients can book up to</span>
-            <select value={prac?.booking_window_weeks || 8}
-              onChange={async e => {
-                const weeks = parseInt(e.target.value);
-                if (IS_DEMO) return;
-                try {
-                  await supabase.update("practitioners", { booking_window_weeks: weeks }, "id=eq." + prac.id, auth.access_token);
-                  setPrac(prev => ({ ...prev, booking_window_weeks: weeks }));
-                } catch (err) { console.error(err); }
-              }}
-              style={{ padding: "10px 16px", border: "1.5px solid var(--border)", background: "var(--cream)", fontFamily: "'Outfit',sans-serif", fontSize: 14, outline: "none", color: "var(--charcoal)", cursor: "pointer" }}>
-              {Array.from({ length: 16 }, (_, i) => i + 1).map(w => (
-                <option key={w} value={w}>{w} week{w !== 1 ? "s" : ""}</option>
-              ))}
-            </select>
-            <span style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300 }}>in advance</span>
-          </div>
           </>}
 
           {/* ── Custom Hours ── */}
@@ -2561,30 +2585,6 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
               </div>
             ))
           )}
-          </>}
-
-          {/* ── Booking Slots ── */}
-          <CollapsibleHeader title="Booking Slots" open={schedOpen.slots} onToggle={() => setSchedOpen(o => ({ ...o, slots: !o.slots }))} />
-          {schedOpen.slots && <>
-          <p style={{ fontSize: 14, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>How often should available time slots appear in the booking calendar?</p>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "16px 20px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 32 }}>
-            <span style={{ fontSize: 14, fontWeight: 500, marginRight: 8 }}>Show slots every</span>
-            {[15, 30, 60].map(mins => (
-              <button key={mins} onClick={async () => {
-                if (IS_DEMO) return;
-                try {
-                  await supabase.update("practitioners", { slot_interval: mins }, "id=eq." + prac.id, auth.access_token);
-                  setPrac(prev => ({ ...prev, slot_interval: mins }));
-                } catch (e) { console.error(e); }
-              }} style={{
-                padding: "10px 20px",
-                background: (prac?.slot_interval || 30) === mins ? "var(--charcoal)" : "none",
-                color: (prac?.slot_interval || 30) === mins ? "var(--cream)" : "var(--charcoal)",
-                border: (prac?.slot_interval || 30) === mins ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)",
-                cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 500, transition: "all .2s"
-              }}>{mins} min</button>
-            ))}
-          </div>
           </>}
 
           {/* ── Calendar Sync ── */}
