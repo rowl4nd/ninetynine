@@ -2139,7 +2139,7 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                           <div key={w.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, padding: "14px 18px", background: "var(--warm-white)", border: "1.5px solid var(--border)", marginBottom: 8 }}>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 500 }}>{w.client_name}</div>
-                              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{w.service_title || "Any service"}{w.price ? " · £" + w.price : ""}</div>
+                              <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>{w.service_title || "Any service"}{w.duration ? " · " + w.duration + " min" : ""}{w.price ? " · £" + w.price : ""}</div>
                               <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
                                 <a href={"tel:" + w.client_phone} style={{ fontSize: 13, color: "var(--gold)", textDecoration: "none", fontWeight: 500 }}>Call</a>
                                 <a href={"sms:" + w.client_phone} style={{ fontSize: 13, color: "var(--gold)", textDecoration: "none", fontWeight: 500 }}>Text</a>
