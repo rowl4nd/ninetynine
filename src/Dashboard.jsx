@@ -1645,6 +1645,7 @@ export default function Dashboard({ onBack }) {
   const [newBlockStart, setNewBlockStart] = useState("");
   const [newBlockEnd, setNewBlockEnd] = useState("");
   const [blockType, setBlockType] = useState("full");
+  const [newBlockRangeEnd, setNewBlockRangeEnd] = useState("");
   const [blockSaving, setBlockSaving] = useState(false);
 const [dateOverrides, setDateOverrides] = useState([]);
 const [newOverrideDate, setNewOverrideDate] = useState("");
@@ -1983,6 +1984,29 @@ break_duration: row.break_start ? (parseInt(row.break_duration) || null) : null,
 
   async function addBlockedDate() {
     if (!newBlock) return;
+
+    // Date Range: one full-day block per day, inclusive
+    if (blockType === "range") {
+      if (!newBlockRangeEnd) return;
+      if (newBlockRangeEnd < newBlock) { alert("End date must be on or after the start date."); return; }
+      setBlockSaving(true);
+      const days = [];
+      for (let d = new Date(newBlock + "T12:00:00"); d <= new Date(newBlockRangeEnd + "T12:00:00"); d.setDate(d.getDate() + 1)) {
+        days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+      }
+      if (IS_DEMO) {
+        setBlockedDates(prev => [...prev, ...days.map((dt, i) => ({ id: Date.now() + i, practitioner_id: prac.id, blocked_date: dt }))]);
+        setNewBlock(""); setNewBlockRangeEnd(""); setBlockSaving(false); return;
+      }
+      try {
+        const res = await supabase.insert("blocked_dates", days.map(dt => ({ practitioner_id: prac.id, blocked_date: dt })), auth.access_token);
+        setBlockedDates(prev => [...prev, ...res].sort((a, b) => a.blocked_date.localeCompare(b.blocked_date)));
+        setNewBlock(""); setNewBlockRangeEnd("");
+      } catch (e) { console.error(e); alert("Error saving. Some of those days may already be blocked."); }
+      setBlockSaving(false);
+      return;
+    }
+
     if (blockType === "partial" && (!newBlockStart || !newBlockEnd)) return;
     if (blockType === "partial" && newBlockStart >= newBlockEnd) { alert("End time must be after start time."); return; }
     setBlockSaving(true);
@@ -2469,16 +2493,21 @@ onBlur={() => saveAvailability(i, { break_start: row.break_start || null })}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <button onClick={() => setBlockType("full")} style={{ padding: "10px 20px", background: blockType === "full" ? "var(--charcoal)" : "none", color: blockType === "full" ? "var(--cream)" : "var(--charcoal)", border: blockType === "full" ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", transition: "all .2s" }}>Full Day</button>
               <button onClick={() => setBlockType("partial")} style={{ padding: "10px 20px", background: blockType === "partial" ? "var(--charcoal)" : "none", color: blockType === "partial" ? "var(--cream)" : "var(--charcoal)", border: blockType === "partial" ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", transition: "all .2s" }}>Time Range</button>
+              <button onClick={() => setBlockType("range")} style={{ padding: "10px 20px", background: blockType === "range" ? "var(--charcoal)" : "none", color: blockType === "range" ? "var(--cream)" : "var(--charcoal)", border: blockType === "range" ? "1.5px solid var(--charcoal)" : "1.5px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", transition: "all .2s" }}>Date Range</button>
             </div>
-            {blockType === "full" ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Date</label>
+            {blockType === "range" ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 140px", minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>From</label>
                   <input type="date" value={newBlock} onChange={e => setNewBlock(e.target.value)} min={new Date().toISOString().split("T")[0]} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
                 </div>
-                <button onClick={addBlockedDate} disabled={!newBlock || blockSaving} style={{ padding: "8px 16px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: newBlock && !blockSaving ? 1 : .35, flexShrink: 0, alignSelf: "flex-end" }}>Block</button>
+                <div style={{ flex: "1 1 140px", minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: "var(--warm-gray)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 5 }}>To</label>
+                  <input type="date" value={newBlockRangeEnd} onChange={e => setNewBlockRangeEnd(e.target.value)} min={newBlock || new Date().toISOString().split("T")[0]} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none" }} />
+                </div>
+                <button onClick={addBlockedDate} disabled={!newBlock || !newBlockRangeEnd || blockSaving} style={{ padding: "8px 16px", background: "var(--charcoal)", color: "var(--cream)", border: "none", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1.5px", textTransform: "uppercase", opacity: newBlock && newBlockRangeEnd && !blockSaving ? 1 : .35, flexShrink: 0, alignSelf: "flex-end" }}>Block</button>
               </div>
-            ) : (
+            ) : blockType === "full" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
