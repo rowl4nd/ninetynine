@@ -1674,8 +1674,21 @@ const [overrideSaving, setOverrideSaving] = useState(false);
   const [depositPercentInput, setDepositPercentInput] = useState("");
   const [depositThresholdInput, setDepositThresholdInput] = useState("");
   const [depositsOpen, setDepositsOpen] = useState(false);
-  const [schedOpen, setSchedOpen] = useState({});
+const [schedOpen, setSchedOpen] = useState({});
   const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const [allPracs, setAllPracs] = useState([]);
+  const [viewedPracId, setViewedPracId] = useState(null);
+  // Owner can view another practitioner's bookings; everyone else only sees their own.
+  const viewedPrac = (prac?.is_owner && viewedPracId && viewedPracId !== prac.id)
+    ? (allPracs.find(p => p.id === viewedPracId) || prac)
+    : prac;
+
+  // Owner-only: practitioner list for the Bookings scope dropdown
+  useEffect(() => {
+    if (!prac?.is_owner || !auth || IS_DEMO) return;
+    supabase.query("practitioners", { filters: "&is_active=eq.true&order=name", token: auth.access_token })
+      .then(setAllPracs).catch(console.error);
+  }, [prac?.is_owner, auth]);
 
   // Handle Stripe Connect return
 useEffect(() => {
@@ -1835,9 +1848,9 @@ useEffect(() => {
     const n = new Date();
     const rangeStart = new Date(n); rangeStart.setMonth(rangeStart.getMonth() - 1);
     const rangeEnd = new Date(n); rangeEnd.setMonth(rangeEnd.getMonth() + 3);
-    supabase.query("bookings", {
+supabase.query("bookings", {
       select: "*",
-      filters: "&practitioner_id=eq." + prac.id + "&booking_date=gte." + rangeStart.toISOString().split("T")[0] + "&booking_date=lte." + rangeEnd.toISOString().split("T")[0] + "&status=eq.confirmed&order=booking_date,booking_time",
+      filters: "&practitioner_id=eq." + viewedPrac.id + "&booking_date=gte." + rangeStart.toISOString().split("T")[0] + "&booking_date=lte." + rangeEnd.toISOString().split("T")[0] + "&status=eq.confirmed&order=booking_date,booking_time",
       token: auth.access_token,
     }).then(async (rows) => {
       if (rows.length > 0) {
@@ -1852,30 +1865,30 @@ useEffect(() => {
       }
       setBookings(rows);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [auth, prac, tab]);
+  }, [auth, viewedPrac, tab]);
   useEffect(() => {
     if (!auth || !prac || tab !== "bookings" || IS_DEMO) return;
     const todayStr = new Date().toISOString().split("T")[0];
     supabase.query("blocked_dates", {
-      filters: "&practitioner_id=eq." + prac.id + "&blocked_date=gte." + todayStr + "&order=blocked_date",
+      filters: "&practitioner_id=eq." + viewedPrac.id + "&blocked_date=gte." + todayStr + "&order=blocked_date",
       token: auth.access_token,
     }).then(setWeekBlocks).catch(console.error);
     // Waiting clients for upcoming dates only (past dates are moot).
     supabase.query("waitlist", {
-      filters: "&practitioner_id=eq." + prac.id + "&status=eq.waiting&waitlist_date=gte." + todayStr + "&order=waitlist_date,created_at",
+      filters: "&practitioner_id=eq." + viewedPrac.id + "&status=eq.waiting&waitlist_date=gte." + todayStr + "&order=waitlist_date,created_at",
       token: auth.access_token,
     }).then(setWaitlist).catch(console.error);
-  }, [auth, prac, tab]);
+  }, [auth, viewedPrac, tab]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!auth || !prac || !showStaffBooking) return;
     if (IS_DEMO) { setStaffBookServices(DEMO_SERVICES_LIST); return; }
     supabase.query("custom_services", {
       select: "*,addons:custom_service_addons(*)",
-      filters: "&practitioner_id=eq." + prac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
+      filters: "&practitioner_id=eq." + viewedPrac.id + "&is_active=eq.true&order=group_order,service_order,created_at",
       token: auth.access_token,
      }).then(rows => setStaffBookServices(rows.map(s => ({ ...s, addons: s.addons || [] })))).catch(console.error);
-  }, [auth, prac, showStaffBooking]);
+  }, [auth, viewedPrac, showStaffBooking]);
 
   async function removeWaitlistEntry(id) {
     if (IS_DEMO) { setWaitlist(prev => prev.filter(w => w.id !== id)); return; }
@@ -1886,14 +1899,14 @@ useEffect(() => {
     } catch (e) { console.error(e); alert("Couldn't remove that entry. Please try again."); }
   }
 
-  function refreshBookings() {
+function refreshBookings() {
     if (!auth || !prac || IS_DEMO) return;
     const n = new Date();
     const rangeStart = new Date(n); rangeStart.setMonth(rangeStart.getMonth() - 1);
     const rangeEnd = new Date(n); rangeEnd.setMonth(rangeEnd.getMonth() + 3);
     supabase.query("bookings", {
       select: "*",
-      filters: "&practitioner_id=eq." + prac.id + "&booking_date=gte." + rangeStart.toISOString().split("T")[0] + "&booking_date=lte." + rangeEnd.toISOString().split("T")[0] + "&status=eq.confirmed&order=booking_date,booking_time",
+      filters: "&practitioner_id=eq." + viewedPrac.id + "&booking_date=gte." + rangeStart.toISOString().split("T")[0] + "&booking_date=lte." + rangeEnd.toISOString().split("T")[0] + "&status=eq.confirmed&order=booking_date,booking_time",
       token: auth.access_token,
     }).then(async (rows) => {
       if (rows.length > 0) {
@@ -2092,10 +2105,20 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
         </select>
       </div>
 
-      {tab === "bookings" && (
+{tab === "bookings" && (
         <div>
+          {prac?.is_owner && allPracs.length > 0 && !showStaffBooking && !bookingFromWaitlist && (
+            <div style={{ marginBottom: 24 }}>
+              <label className="nn-input-label">Viewing bookings for</label>
+              <select value={viewedPracId || prac.id}
+                onChange={e => { setViewedPracId(e.target.value); setShowStaffBooking(false); setBookingFromWaitlist(null); }}
+                style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", color: "var(--charcoal)", cursor: "pointer", minWidth: 220 }}>
+                {allPracs.map(p => <option key={p.id} value={p.id}>{p.id === prac.id ? p.name + " (you)" : p.name}</option>)}
+              </select>
+            </div>
+          )}
           {bookingFromWaitlist ? (
-            <WaitlistBookingForm prac={prac} entry={bookingFromWaitlist} token={auth.access_token}
+            <WaitlistBookingForm prac={viewedPrac} entry={bookingFromWaitlist} token={auth.access_token}
               onDone={() => {
                 setBookingFromWaitlist(null);
                 refreshBookings();
@@ -2103,12 +2126,12 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
               }}
               onCancel={() => setBookingFromWaitlist(null)} />
           ) : showStaffBooking ? (
-            <StaffBookingForm prac={prac} services={staffBookServices} token={auth.access_token}
+            <StaffBookingForm prac={viewedPrac} services={staffBookServices} token={auth.access_token}
               onDone={() => { setShowStaffBooking(false); refreshBookings(); }}
               onCancel={() => setShowStaffBooking(false)} />
          ) : (
             <>
-              <WeekView bookings={confirmedBookings} loading={loading} prac={prac} token={auth.access_token}
+              <WeekView bookings={confirmedBookings} loading={loading} prac={viewedPrac} token={auth.access_token}
                 blocks={weekBlocks}
                 onAddBooking={() => setShowStaffBooking(true)}
                 onStatusChange={updateStatus}
