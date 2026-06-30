@@ -2147,9 +2147,10 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                       {waitlist.length} waiting
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 20 }}>
+<p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 20 }}>
                     Clients hoping for a slot on these dates. If a gap opens up, get in touch to fill it.
                   </p>
+                  <div style={{ maxHeight: "45vh", overflowY: "auto", paddingRight: 6, WebkitOverflowScrolling: "touch" }}>
                   {(() => {
                     const byDate = {};
                     waitlist.forEach(w => { (byDate[w.waitlist_date] ||= []).push(w); });
@@ -2185,6 +2186,7 @@ const stripeConnected = !!prac?.stripe_account_id && !!prac?.stripe_charges_enab
                       </div>
                     ));
                   })()}
+                  </div>
                 </div>
               )}
             </>
