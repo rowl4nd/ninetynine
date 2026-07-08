@@ -1845,9 +1845,9 @@ useEffect(() => {
       return;
     }
     setLoading(true);
-    const n = new Date();
-    const rangeStart = new Date(n); rangeStart.setMonth(rangeStart.getMonth() - 1);
-    const rangeEnd = new Date(n); rangeEnd.setMonth(rangeEnd.getMonth() + 3);
+const n = new Date();
+const rangeStart = new Date(n); rangeStart.setMonth(rangeStart.getMonth() - 1);
+const rangeEnd = new Date(n); rangeEnd.setMonth(rangeEnd.getMonth() + 12);
 supabase.query("bookings", {
       select: "*",
       filters: "&practitioner_id=eq." + viewedPrac.id + "&booking_date=gte." + rangeStart.toISOString().split("T")[0] + "&booking_date=lte." + rangeEnd.toISOString().split("T")[0] + "&status=eq.confirmed&order=booking_date,booking_time",
