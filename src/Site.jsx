@@ -19,7 +19,7 @@ import {
 // NAV
 // ============================================================
 
-function Nav({ scrolled, onNav, onBook, onDash }) {
+function Nav({ scrolled, onNav, onBook, onDash, onViewBookings }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const close = () => setMobileOpen(false);
 
@@ -31,6 +31,7 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
           <li><a onClick={() => onNav("services")}>Services</a></li>
           <li><a onClick={() => onNav("team")}>Team</a></li>
           <li><a onClick={() => onNav("contact")}>Contact</a></li>
+<li><a onClick={onViewBookings}>My Bookings</a></li>
           <li><a onClick={onDash} style={{ opacity: 0.5, fontSize: 11 }}>Staff Login</a></li>
           <li><button className="nn-nav-book" onClick={onBook}>Book Now</button></li>
         </ul>
@@ -46,7 +47,8 @@ function Nav({ scrolled, onNav, onBook, onDash }) {
           {[
             { label: "Services", fn: () => { onNav("services"); close(); } },
             { label: "Team",     fn: () => { onNav("team");     close(); } },
-            { label: "Contact",  fn: () => { onNav("contact");  close(); } },
+{ label: "Contact",  fn: () => { onNav("contact");  close(); } },
+            { label: "My Bookings", fn: () => { onViewBookings(); close(); } },
           ].map(item => (
             <button key={item.label} className="nn-mobile-nav-link" onClick={item.fn}>{item.label}</button>
           ))}
@@ -266,6 +268,77 @@ function ContactForm() {
           style={{ width: "100%", marginTop: 6, opacity: canSend ? 1 : 0.35 }}>
           {sending ? "Sending..." : "Send Message"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VIEW BOOKINGS MODAL (homepage — request magic link by email)
+// ============================================================
+
+function ViewBookingsModal({ onClose }) {
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState(""); // honeypot
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const emailValid = isValidEmail(email);
+  const canSend = emailValid && !sending;
+
+  async function handleSend() {
+    if (!canSend) return;
+    setSending(true);
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/send-bookings-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email: email.trim(), company }),
+      });
+      setSent(true);
+    } catch (e) {
+      console.error(e);
+      alert("Sorry, something went wrong. Please try again, or DM us on Instagram @ninetyninebyk.");
+    }
+    setSending(false);
+  }
+
+  return (
+    <div className="nn-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="nn-modal">
+        <button className="nn-modal-close" onClick={onClose} aria-label="Close">✕</button>
+        {sent ? (
+          <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <div className="nn-success-icon" style={{ width: 48, height: 48, margin: "0 auto 16px" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 400, marginBottom: 8 }}>Check your inbox</div>
+            <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.7 }}>
+              If you have any upcoming bookings with us, we've sent a link to {email.trim()} to view them.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 400, marginBottom: 8 }}>View your bookings</div>
+            <p style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 20, lineHeight: 1.7 }}>
+              Enter the email you booked with and we'll send you a link to view and manage your appointments.
+            </p>
+            <input className="nn-input" type="email" value={email}
+              onChange={e => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)}
+              placeholder="your@email.com"
+              style={emailTouched && !emailValid ? { borderColor: "var(--red)" } : {}} />
+            <input type="text" value={company} onChange={e => setCompany(e.target.value)}
+              tabIndex={-1} autoComplete="off" aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} />
+            <button className="nn-btn nn-btn-dark" onClick={handleSend} disabled={!canSend}
+              style={{ width: "100%", marginTop: 16, opacity: canSend ? 1 : 0.35 }}>
+              {sending ? "Sending..." : "Send Me The Link"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1789,7 +1862,8 @@ const disabled = past || isTooFar || blocked || (unavail && !hasOverride);
 export default function Site({ onDash }) {
   const [scrolled, setScrolled] = useState(false);
   const [preselectedPrac, setPreselectedPrac] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+const [drawerOpen, setDrawerOpen] = useState(false);
+  const [viewBookingsOpen, setViewBookingsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const bookRef = useRef(null);
   const practitioners = usePractitioners();
@@ -1838,7 +1912,7 @@ export default function Site({ onDash }) {
 
   return (
     <>
-      <Nav scrolled={scrolled} onNav={scrollTo} onBook={handleBook} onDash={onDash} />
+      <Nav scrolled={scrolled} onNav={scrollTo} onBook={handleBook} onDash={onDash} onViewBookings={() => setViewBookingsOpen(true)} />
       <Hero onBook={handleBook} />
       <Divider />
       <div className="nn-fade"><ServicesList practitioners={practitioners} onBookWith={bookWithPrac} /></div>
@@ -1866,7 +1940,7 @@ export default function Site({ onDash }) {
         />
       </section>
 
-      <div className={"nn-booking-drawer" + (drawerOpen ? " open" : "")} aria-hidden={!drawerOpen}>
+<div className={"nn-booking-drawer" + (drawerOpen ? " open" : "")} aria-hidden={!drawerOpen}>
         <div className="nn-booking-drawer-header">
           <div className="nn-booking-drawer-title">Book an appointment</div>
           <button className="nn-booking-drawer-close" onClick={closeDrawer} aria-label="Close">✕</button>
@@ -1883,6 +1957,8 @@ export default function Site({ onDash }) {
           )}
         </div>
       </div>
+
+      {viewBookingsOpen && <ViewBookingsModal onClose={() => setViewBookingsOpen(false)} />}
 
       <div className="nn-fade">
         <section className="nn-section" id="contact">
