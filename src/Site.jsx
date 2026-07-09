@@ -286,6 +286,11 @@ function ViewBookingsModal({ onClose }) {
   const emailValid = isValidEmail(email);
   const canSend = emailValid && !sending;
 
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   async function handleSend() {
     if (!canSend) return;
     setSending(true);
@@ -307,9 +312,22 @@ function ViewBookingsModal({ onClose }) {
   }
 
   return (
-    <div className="nn-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="nn-modal">
-        <button className="nn-modal-close" onClick={onClose} aria-label="Close">✕</button>
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20,
+      }}
+    >
+      <div style={{ background: "var(--warm-white)", border: "1px solid var(--border)", padding: 32, maxWidth: 400, width: "100%", position: "relative" }}>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--warm-gray)" }}
+        >
+          ✕
+        </button>
         {sent ? (
           <div style={{ textAlign: "center", padding: "12px 0" }}>
             <div className="nn-success-icon" style={{ width: 48, height: 48, margin: "0 auto 16px" }}>
