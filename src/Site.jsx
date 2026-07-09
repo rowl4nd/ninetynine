@@ -350,9 +350,9 @@ async function handleSend() {
               onChange={e => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)}
               placeholder="your@email.com"
               style={emailTouched && !emailValid ? { borderColor: "var(--red)" } : {}} />
-            <input type="text" value={company} onChange={e => setCompany(e.target.value)}
-              tabIndex={-1} autoComplete="off" aria-hidden="true"
-              style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} />
+<input type="text" value={company} onChange={e => setCompany(e.target.value)}
+  name="nn-hp-field" tabIndex={-1} autoComplete="new-password" aria-hidden="true"
+  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} />
             <button className="nn-btn nn-btn-dark" onClick={handleSend} disabled={!canSend}
               style={{ width: "100%", marginTop: 16, opacity: canSend ? 1 : 0.35 }}>
               {sending ? "Sending..." : "Send Me The Link"}
