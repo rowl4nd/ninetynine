@@ -291,11 +291,11 @@ function ViewBookingsModal({ onClose }) {
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  async function handleSend() {
+async function handleSend() {
     if (!canSend) return;
     setSending(true);
     try {
-      await fetch(`${SUPABASE_URL}/functions/v1/send-bookings-link`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-bookings-link`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -303,6 +303,8 @@ function ViewBookingsModal({ onClose }) {
         },
         body: JSON.stringify({ email: email.trim(), company }),
       });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Request failed");
       setSent(true);
     } catch (e) {
       console.error(e);
