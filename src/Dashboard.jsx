@@ -1423,34 +1423,42 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
 const GBP = (n) => "£" + Number(n || 0).toLocaleString("en-GB", { maximumFractionDigits: 0 });
 const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function periodRange(period, customFrom, customTo) {
+function periodRange(period, customFrom, customTo, offset = 0) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  if (period === "daily") return { from: iso(today), to: iso(today) };
+  if (period === "daily") {
+    const d = new Date(today); d.setDate(d.getDate() + offset);
+    return { from: iso(d), to: iso(d) };
+  }
   if (period === "weekly") {
     const day = today.getDay();
-    const start = new Date(today); start.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
+    const start = new Date(today);
+    start.setDate(today.getDate() + (day === 0 ? -6 : 1 - day) + offset * 7);
     const end = new Date(start); end.setDate(start.getDate() + 6);
     return { from: iso(start), to: iso(end) };
   }
   if (period === "monthly") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const start = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + offset + 1, 0);
     return { from: iso(start), to: iso(end) };
   }
   if (period === "12monthly") {
-    const start = new Date(today); start.setMonth(start.getMonth() - 11); start.setDate(1);
-    return { from: iso(start), to: iso(today) };
+    // Ends on today for the current window; otherwise on the last day of the shifted month.
+    const end = offset === 0 ? new Date(today) : new Date(today.getFullYear(), today.getMonth() + offset + 1, 0);
+    const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
+    return { from: iso(start), to: iso(end) };
   }
   if (period === "yearly") {
-    return { from: `${today.getFullYear()}-01-01`, to: `${today.getFullYear()}-12-31` };
+    const y = today.getFullYear() + offset;
+    return { from: `${y}-01-01`, to: `${y}-12-31` };
   }
-  // custom
+  // custom — arrows don't apply
   return { from: customFrom || iso(today), to: customTo || iso(today) };
 }
 
 function ReportTab({ prac, token }) {
-  const [period, setPeriod] = useState("monthly");
+const [period, setPeriod] = useState("monthly");
+  const [offset, setOffset] = useState(0);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [scope, setScope] = useState(prac?.is_owner ? "__all__" : (prac?.id || ""));
@@ -1466,7 +1474,7 @@ function ReportTab({ prac, token }) {
       .then(setPractitioners).catch(console.error);
   }, [prac?.is_owner]);
 
-  const range = periodRange(period, customFrom, customTo);
+  const range = periodRange(period, customFrom, customTo, offset);
 
   useEffect(() => {
     if (IS_DEMO) {
@@ -1488,7 +1496,7 @@ function ReportTab({ prac, token }) {
       else setData(res);
       setLoading(false);
     }).catch((e) => { console.error(e); setErr("Couldn't load report."); setLoading(false); });
-  }, [period, customFrom, customTo, scope, prac?.id]);
+  }, [period, offset, customFrom, customTo, scope, prac?.id]);
 
   const s = data?.summary;
 
@@ -1540,7 +1548,7 @@ function ReportTab({ prac, token }) {
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
         {PERIODS.map(([val, lbl]) => (
-          <button key={val} onClick={() => setPeriod(val)}
+          <button key={val} onClick={() => { setPeriod(val); setOffset(0); }}
             style={{ padding: "8px 16px", background: period === val ? "var(--charcoal)" : "none", color: period === val ? "var(--cream)" : "var(--charcoal)", border: "1.5px solid " + (period === val ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase" }}>{lbl}</button>
         ))}
       </div>
@@ -1552,8 +1560,24 @@ function ReportTab({ prac, token }) {
         </div>
       )}
 
-      <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>{rangeLabel}</div>
-
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+        {period !== "custom" && (
+          <button className="nn-cal-btn" onClick={() => setOffset(o => o - 1)} aria-label="Previous">‹</button>
+        )}
+        <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, minWidth: 190 }}>{rangeLabel}</div>
+        {period !== "custom" && (
+          <>
+            <button className="nn-cal-btn" onClick={() => setOffset(o => o + 1)} aria-label="Next">›</button>
+            {offset !== 0 && (
+              <button onClick={() => setOffset(0)}
+                style={{ padding: "5px 10px", background: "none", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", color: "var(--warm-gray)" }}>
+                Now
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      
       {loading ? (
         <div style={{ color: "var(--warm-gray)", padding: 40, textAlign: "center" }}>Loading...</div>
       ) : err ? (
