@@ -1642,22 +1642,29 @@ const [editSlotCounts, setEditSlotCounts] = useState({});
     setEditTime(null);
   }
 
-  async function handleReschedule() {
+async function handleReschedule() {
     if (!editDate || !editTime || !editingBooking) return;
     setRescheduling(true);
     try {
-      await supabase.update("bookings", {
-        booking_date: dateStr(editDate.year, editDate.month, editDate.day),
-        booking_time: editTime + ":00",
-        rescheduled_by: "client",
-      }, "id=eq." + editingBooking.id);
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/booking-rescheduled`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ booking_id: editingBooking.id, source: "client", old_date: editingBooking.booking_date, old_time: editingBooking.booking_time }),
-        });
-      } catch (e) { console.error("Reschedule email failed:", e); }
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/reschedule-booking`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          cancellation_token: editingBooking.cancellation_token,
+          new_date: dateStr(editDate.year, editDate.month, editDate.day),
+          new_time: editTime + ":00",
+        }),
+      });
+      const data = await res.json();
+      if (data.blocked) {
+        alert("This appointment is less than 48 hours away, so it can't be rescheduled online. Please message your practitioner directly — DM us on Instagram @ninetyninebyk and we'll help.");
+        setRescheduling(false);
+        return;
+      }
+      if (data.error) throw new Error(data.error);
       setEditingBooking(null);
       setEditDate(null);
       setEditTime(null);
@@ -1743,8 +1750,10 @@ const data = await res.json();
               const dateObj = new Date(b.booking_date + "T12:00:00");
               const formattedDate = dateObj.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
               const isToday = b.booking_date === new Date().toISOString().split("T")[0];
-              const isEditing = editingBooking?.id === b.id;
+const isEditing = editingBooking?.id === b.id;
               const isCancelling = cancellingId === b.id;
+              const hoursUntil = (new Date(`${b.booking_date}T${b.booking_time}`) - new Date()) / (1000 * 60 * 60);
+              const withinWindow = hoursUntil < 48;
 
               return (
                 <div key={b.id} style={{ background: "var(--warm-white)", border: "1px solid var(--border)", marginBottom: 12, position: "relative", overflow: "hidden" }}>
@@ -1760,14 +1769,24 @@ const data = await res.json();
                       {b.deposit_paid && <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 500, marginTop: 4 }}>£{b.deposit_amount} deposit paid</div>}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-                      <button onClick={() => isEditing ? cancelEdit() : startEdit(b)}
-                        style={{ padding: "8px 16px", background: isEditing ? "var(--charcoal)" : "none", color: isEditing ? "var(--cream)" : "var(--charcoal)", border: "1px solid " + (isEditing ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>
-                        {isEditing ? "Close" : "Edit"}
-                      </button>
-                      <button onClick={() => handleCancel(b)} disabled={isCancelling || isEditing}
-                        style={{ padding: "8px 16px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif", opacity: isCancelling || isEditing ? 0.4 : 1 }}>
-                        {isCancelling ? "..." : "Cancel"}
-                      </button>
+{withinWindow ? (
+                        <div style={{ fontSize: 11, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.5, maxWidth: 130, textAlign: "right" }}>
+                          Within 48 hours — please DM{" "}
+                          <a href="https://www.instagram.com/ninetyninebyk/" style={{ color: "var(--gold)", textDecoration: "none" }}>@ninetyninebyk</a>
+                          {" "}to change this.
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => isEditing ? cancelEdit() : startEdit(b)}
+                            style={{ padding: "8px 16px", background: isEditing ? "var(--charcoal)" : "none", color: isEditing ? "var(--cream)" : "var(--charcoal)", border: "1px solid " + (isEditing ? "var(--charcoal)" : "var(--border)"), cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif" }}>
+                            {isEditing ? "Close" : "Edit"}
+                          </button>
+                          <button onClick={() => handleCancel(b)} disabled={isCancelling || isEditing}
+                            style={{ padding: "8px 16px", background: "none", color: "var(--red)", border: "1px solid var(--red)", cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Outfit',sans-serif", opacity: isCancelling || isEditing ? 0.4 : 1 }}>
+                            {isCancelling ? "..." : "Cancel"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                   {isEditing && (
