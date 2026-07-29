@@ -1591,6 +1591,7 @@ const [period, setPeriod] = useState("monthly");
             <Card label="Hours" value={s.hours_booked} sub="booked" />
             <Card label="Booked value" value={GBP(s.booked_value)} accent="var(--gold)" sub={`avg ${GBP(s.avg_value)}`} />
             <Card label="Cancelled" value={s.cancelled + s.no_show} sub={`${GBP(s.cancelled_value)} lost`} accent="var(--red)" />
+            <Card label="Utilisation" value={(s.utilisation_pct ?? 0) + "%"} sub={`${s.hours_booked}h of ${s.available_hours ?? 0}h`} />
           </div>
           <p style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, lineHeight: 1.6, marginBottom: 36 }}>
             Booked value is the total treatment price for confirmed and completed appointments. Payment is taken in salon.
