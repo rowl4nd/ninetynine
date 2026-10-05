@@ -30,7 +30,6 @@ export const TREATMENT_CATEGORIES = [
     { id: "pedicures", title: "Pedicures", icon: "✦", description: "Gel Toes", practitioners: ["Melissa"] },
   { id: "lashes", title: "Lashes", icon: "✦", description: "Lash Lifts, Tints", practitioners: ["Inke"] },
 ];
-];
 
 // ============================================================
 // UTILITY FUNCTIONS
