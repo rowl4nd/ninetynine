@@ -113,7 +113,7 @@ function ServicesList({ practitioners, onBookWith }) {
     <section className="nn-section" id="services">
       <div className="nn-section-label">Our Services</div>
       <h2 className="nn-section-title">Treatments</h2>
-      <p className="nn-section-desc">From gel manicures to luxury facials, every treatment is delivered with care in our warm, welcoming space on Banks Road. Tap a name to book.</p>
+      <p className="nn-section-desc">From gel manicures to lash lifts, every treatment is delivered with care in our warm, welcoming space on Banks Road. Tap a name to book.</p>
       <div className="nn-treat-grid">
         {TREATMENT_CATEGORIES.map(cat => (
           <div className="nn-treat-card" key={cat.id}>
@@ -1961,7 +1961,7 @@ const [drawerOpen, setDrawerOpen] = useState(false);
         <div className="nn-insta">
           <div className="nn-insta-title">Follow our work</div>
           <a href="https://www.instagram.com/ninetyninebyk/" target="_blank" rel="noopener noreferrer">@ninetyninebyk</a>
-          <p>See our latest nails, brows, lashes and more on Instagram</p>
+          <p>See our latest nails, lashes and more on Instagram</p>
         </div>
       </div>
 
