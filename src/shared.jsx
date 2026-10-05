@@ -27,10 +27,9 @@ export const DEMO_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:0
 
 export const TREATMENT_CATEGORIES = [
   { id: "manicures", title: "Manicures", icon: "✦", description: "Gel Manicures, Builder Gel & Nail Art", practitioners: ["Kristen", "Inke", "Melissa"] },
-  { id: "pedicures", title: "Pedicures", icon: "✦", description: "Gel Toes & Toenail Reconstruction", practitioners: ["Holly", "Melissa"] },
-  { id: "brows", title: "Brows", icon: "✦", description: "Lamination, Wax & Tint", practitioners: ["Lisa"] },
-  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash Lifts, Tints", practitioners: ["Inke", "Lisa"] },
-  { id: "facials", title: "Facials", icon: "✦", description: "Express & Luxury Facials", practitioners: ["Lisa"] },
+    { id: "pedicures", title: "Pedicures", icon: "✦", description: "Gel Toes", practitioners: ["Melissa"] },
+  { id: "lashes", title: "Lashes", icon: "✦", description: "Lash Lifts, Tints", practitioners: ["Inke"] },
+];
 ];
 
 // ============================================================
