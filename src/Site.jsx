@@ -71,7 +71,7 @@ function Hero({ onBook }) {
       <div className="nn-hero-accent" />
       <img src="/logo-dark.png" alt="ninety nine." className="nn-hero-logo" />
       <div className="nn-hero-services">
-        <span>Hands</span><span className="dot" /><span>Toes</span><span className="dot" /><span>Brows</span><span className="dot" /><span>Lashes</span><span className="dot" /><span>Facials</span>
+        <span>Hands</span><span className="dot" /><span>Toes</span><span className="dot" /><span>Lashes</span>
       </div>
       <p className="nn-hero-address">99 Banks Road · West Kirby</p>
       <div className="nn-hero-cta">
