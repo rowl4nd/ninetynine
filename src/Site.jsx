@@ -2025,7 +2025,15 @@ const [drawerOpen, setDrawerOpen] = useState(false);
     return () => { document.body.style.overflow = ""; };
   }, [drawerOpen]);
 
-  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  // Links like /#contact (e.g. from emails) — jump to the section once the page has rendered
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleBook = () => {
     if (isMobile) { setDrawerOpen(true); }
