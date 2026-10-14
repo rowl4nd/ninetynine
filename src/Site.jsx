@@ -680,6 +680,67 @@ export function WaitlistBookPage({ token }) {
 }
 
 // ============================================================
+// "DON'T MIND WHO?" — alternative practitioners on a full day
+// ============================================================
+
+// Kill switch: set to false and redeploy to hide the panel instantly.
+const ALT_PRACS_ENABLED = true;
+
+// If anything inside the panel throws, render nothing instead of crashing the booking flow.
+class SilentBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(e) { console.error("AlternativePractitioners failed:", e); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+function AlternativePractitioners({ pracId, date, cart, onPick }) {
+  const [alts, setAlts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const cartKey = cart.map(it => it.service.id + ":" + it.addons.map(a => a.id).join(",")).join("|");
+
+  useEffect(() => {
+    if (IS_DEMO || !pracId || !date || cart.length === 0) { setAlts([]); setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    supabase.rpc("get_alternative_practitioners", {
+      p_date: dateStr(date.year, date.month, date.day),
+      p_exclude_practitioner_id: pracId,
+      p_items: cart.map(it => ({ service_id: it.service.id, addon_ids: it.addons.map(a => a.id) })),
+    })
+      .then(rows => { if (!cancelled) { setAlts(Array.isArray(rows) ? rows : []); setLoading(false); } })
+      .catch(e => { console.error(e); if (!cancelled) { setAlts([]); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [pracId, date, cartKey]);
+
+  if (loading || alts.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Don't mind who?</div>
+      <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 14, lineHeight: 1.6 }}>
+        These team members have times this day for the same treatment. Length and price are theirs.
+      </div>
+      {alts.map(a => (
+        <div key={a.practitioner_id} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 500 }}>{a.practitioner_name}</span>
+            <span style={{ color: "var(--warm-gray)", fontWeight: 300 }}>
+              {" · "}{a.items.map(i => i.title.trim()).join(" + ")} · {a.total_duration} min · £{Number(a.total_price)}
+            </span>
+          </div>
+          <div className="nn-times">
+            {(a.slots || []).map(t => (
+              <button key={t} className="nn-time" onClick={() => onPick(a, t.slice(0, 5))}>{t.slice(0, 5)}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
 // BOOKING FLOW
 // ============================================================
 
@@ -834,8 +895,23 @@ const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, total
     setDate(null); setTime(null);
   }
 
-  // Both timing & price depend on the cart, so any change to it invalidates a chosen slot
+    // Both timing & price depend on the cart, so any change to it invalidates a chosen slot
   function goAddAnother() { setDate(null); setTime(null); setStage("service"); }
+
+  // "Don't mind who?" pick: switch practitioner, swap the cart for their equivalent
+  // services (their own duration/price), keep the date, set the chosen time, go to Confirm.
+  function switchToAlternative(alt, t) {
+    const newPrac = (practitioners || []).find(p => p.id === alt.practitioner_id);
+    if (!newPrac) return;
+    setPrac(newPrac);
+    setCart(alt.items.map(i => ({
+      uid: uidRef.current++,
+      service: { id: i.service_id, title: i.title, duration: i.duration, price: Number(i.price), addons: [] },
+      addons: (i.addons || []).map(a => ({ id: a.id, title: a.title, duration: a.duration, price: Number(a.price) })),
+    })));
+    setTime(t);
+    setStage("confirm");
+  }
 
   async function handleConfirm() {
     if (!canConfirm) return;
@@ -1144,15 +1220,22 @@ const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, total
                 </div>
                 {slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
-                ) : slots.length === 0 ? (
-                  <WaitlistJoin
-                    prac={prac}
-                    date={date}
-                    serviceId={cart[0]?.service.id}
-                    serviceTitle={serviceTitle}
-                    duration={totalDuration}
-                    price={totalPrice}
-                  />
+                                ) : slots.length === 0 ? (
+                  <>
+                    <WaitlistJoin
+                      prac={prac}
+                      date={date}
+                      serviceId={cart[0]?.service.id}
+                      serviceTitle={serviceTitle}
+                      duration={totalDuration}
+                      price={totalPrice}
+                    />
+                    {ALT_PRACS_ENABLED && (
+                      <SilentBoundary>
+                        <AlternativePractitioners pracId={prac?.id} date={date} cart={cart} onPick={switchToAlternative} />
+                      </SilentBoundary>
+                    )}
+                  </>
                 ) : (
                   <div className="nn-times">{slots.map(t => <button key={t} className={"nn-time" + (time === t ? " on" : "")} onClick={() => setTime(t)}>{t}</button>)}</div>
                 )}
