@@ -891,8 +891,16 @@ const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, total
         deposit_paid: false,
       });
       setDone(true);
-    } catch (e) {
+        } catch (e) {
       console.error(e);
+      if (String(e?.message || "").includes("SLOT_TAKEN")) {
+        alert("Sorry, that time has just been booked by someone else. Please choose another time.");
+        setTime(null);
+        setDate(d => (d ? { ...d } : d)); // new object re-triggers the slot fetch for the same day
+        setStage("date");
+        setSaving(false);
+        return;
+      }
       alert("Sorry, there was an error creating your booking. Please try again.");
       setSaving(false);
     }
