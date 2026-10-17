@@ -830,7 +830,8 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const [editCM, setEditCM] = useState(now.getMonth());
   const [editCY, setEditCY] = useState(now.getFullYear());
   const [editDate, setEditDate] = useState(null);
-  const [editTime, setEditTime] = useState(null);
+    const [editTime, setEditTime] = useState(null);
+  const [editManual, setEditManual] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [detailName, setDetailName] = useState("");
   const [detailPhone, setDetailPhone] = useState("");
@@ -862,9 +863,10 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   function openSheet(b) {
   sheetOpenedAtRef.current = Date.now();
   setSheet(b);
-  setSheetMode("detail");
+    setSheetMode("detail");
   setEditDate(null);
   setEditTime(null);
+  setEditManual(false);
   setEditCM(now.getMonth());
   setEditCY(now.getFullYear());
   setClientHistory(null);
@@ -1336,7 +1338,17 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
             {sheetMode === "edit" && (
               <>
                 <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 300, marginBottom: 4 }}>Reschedule</div>
-                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>{sheet.client_name} · {sheet.service_title || sheet.service_name || "Service"}</div>
+                                <div style={{ fontSize: 13, color: "var(--warm-gray)", fontWeight: 300, marginBottom: 24 }}>{sheet.client_name} · {sheet.service_title || sheet.service_name || "Service"}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", background: "var(--cream)", border: "1.5px solid var(--border)", marginBottom: 20, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>Custom time</div>
+                    <div style={{ fontSize: 12, color: "var(--warm-gray)", fontWeight: 300, marginTop: 2 }}>Override hours, book any day, allow overlaps</div>
+                  </div>
+                  <button onClick={() => { setEditManual(o => !o); setEditTime(null); }}
+                    style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: editManual ? "var(--charcoal)" : "var(--border)", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                    <span style={{ position: "absolute", top: 3, left: editManual ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", display: "block" }} />
+                  </button>
+                </div>
                 <div className="nn-cal" style={{ maxWidth: "100%", marginBottom: 20 }}>
                   <div className="nn-cal-head">
                     <button className="nn-cal-btn" onClick={() => { if (editCM === 0) { setEditCM(11); setEditCY(editCY - 1); } else setEditCM(editCM - 1); }}>‹</button>
@@ -1353,12 +1365,13 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                       for (let d = 1; d <= total; d++) {
                         const isNow = d === now.getDate() && editCM === now.getMonth() && editCY === now.getFullYear();
                         const past = new Date(editCY, editCM, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                        const sun = new Date(editCY, editCM, d).getDay() === 0;
+                                                const sun = new Date(editCY, editCM, d).getDay() === 0;
                         const sel = editDate && editDate.day === d && editDate.month === editCM && editDate.year === editCY;
+                        const off = editManual ? past : (past || sun);
                         cells.push(
-                          <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (past || sun ? " off" : "") + (isNow ? " now" : "")}
-                            onClick={() => { if (!past && !sun) { setEditDate({ day: d, month: editCM, year: editCY }); setEditTime(null); } }}
-                            disabled={past || sun}>{d}</button>
+                          <button key={d} className={"nn-cal-day" + (sel ? " on" : "") + (off ? " off" : "") + (isNow ? " now" : "")}
+                            onClick={() => { if (!off) { setEditDate({ day: d, month: editCM, year: editCY }); setEditTime(null); } }}
+                            disabled={off}>{d}</button>
                         );
                       }
                       return cells;
@@ -1370,10 +1383,18 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                     <div style={{ fontSize: 13, color: "var(--warm-gray)", marginBottom: 12, fontWeight: 300 }}>
                       {getDayName(editDate.year, editDate.month, editDate.day)} {editDate.day} {getMonthName(editDate.month)}
                     </div>
-                    {editSlotsLoading ? (
+                                        {editManual ? (
+                      <div>
+                        <input type="time" value={editTime || ""} onChange={e => setEditTime(e.target.value || null)}
+                          style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", width: "100%" }} />
+                        <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
+                          Manual time — availability and clashes aren't checked. {sheet.duration} min from the time you set.
+                        </div>
+                      </div>
+                    ) : editSlotsLoading ? (
                       <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
                     ) : editSlots.length === 0 ? (
-                      <div style={{ color: "var(--red)", fontSize: 13, fontWeight: 300 }}>No available slots. Try another day.</div>
+                      <div style={{ color: "var(--red)", fontSize: 13, fontWeight: 300 }}>No available slots. Try another day, or switch on Custom time.</div>
                     ) : (
                       <div className="nn-times">{editSlots.map(t => <button key={t} className={"nn-time" + (editTime === t ? " on" : "")} onClick={() => setEditTime(t)}>{t}</button>)}</div>
                     )}
