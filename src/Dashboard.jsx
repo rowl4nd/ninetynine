@@ -433,6 +433,66 @@ function ClashWarning({ dayBookings, time, duration, excludeId }) {
   );
 }
 
+// Read-only day view for Custom time mode: existing bookings, blocked time, and the new booking (dashed).
+function DayTimeline({ pracId, date, token, dayBookings, time, duration, excludeId }) {
+  const [blocks, setBlocks] = useState([]);
+  useEffect(() => {
+    if (!pracId || !date || IS_DEMO) { setBlocks([]); return; }
+    let cancelled = false;
+    supabase.query("blocked_dates", {
+      select: "id,start_time,end_time",
+      filters: "&practitioner_id=eq." + pracId + "&blocked_date=eq." + dateStr(date.year, date.month, date.day),
+      token,
+    }).then(r => { if (!cancelled) setBlocks(r); })
+      .catch(e => { console.error(e); if (!cancelled) setBlocks([]); });
+    return () => { cancelled = true; };
+  }, [pracId, date, token]);
+
+  const toMins = t => { const [h, m] = t.slice(0, 5).split(":").map(Number); return h * 60 + m; };
+  const fmt = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  const items = dayBookings.filter(b => b.booking_time).map(b => {
+    const s = toMins(b.booking_time);
+    return { id: b.id, s, e: s + (b.duration || 0), label: b.client_name, current: b.id === excludeId };
+  });
+  const partBlocks = blocks.filter(b => b.start_time && b.end_time).map(b => ({ id: b.id, s: toMins(b.start_time), e: toMins(b.end_time) }));
+  const fullDayBlocked = blocks.some(b => !b.start_time);
+  const proposed = time ? { s: toMins(time), e: toMins(time) + (duration || 0) } : null;
+
+  // Show 09:00–18:00 by default, stretched to fit anything outside it.
+  const all = [...items, ...partBlocks, ...(proposed ? [proposed] : [])];
+  const startMin = Math.floor(Math.min(9 * 60, ...all.map(x => x.s)) / 60) * 60;
+  const endMin = Math.ceil(Math.max(18 * 60, ...all.map(x => x.e)) / 60) * 60;
+  const PX = 0.6; // pixels per minute
+  const top = m => (m - startMin) * PX;
+  const hours = [];
+  for (let m = startMin; m <= endMin; m += 60) hours.push(m);
+
+  return (
+    <div style={{ marginTop: 16, pointerEvents: "none" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "2px", textTransform: "uppercase", color: "var(--warm-gray)", marginBottom: 8 }}>The day so far</div>
+      {fullDayBlocked && <div style={{ fontSize: 12, color: "var(--red)", fontWeight: 300, marginBottom: 8 }}>This day is blocked out.</div>}
+      <div style={{ position: "relative", height: (endMin - startMin) * PX, borderTop: "1px solid var(--border)" }}>
+        {hours.map(m => (
+          <div key={m} style={{ position: "absolute", top: top(m), left: 0, right: 0, borderTop: "1px solid var(--border)" }}>
+            <span style={{ position: "absolute", top: -7, left: 0, fontSize: 10, color: "var(--warm-gray)", background: "var(--cream)", paddingRight: 4 }}>{fmt(m)}</span>
+          </div>
+        ))}
+        {partBlocks.map(b => (
+          <div key={"blk" + b.id} style={{ position: "absolute", top: top(b.s), height: Math.max((b.e - b.s) * PX, 14), left: 44, right: 0, background: "repeating-linear-gradient(45deg, var(--border), var(--border) 4px, transparent 4px, transparent 8px)", fontSize: 11, color: "var(--warm-gray)", padding: "1px 6px", overflow: "hidden" }}>Blocked</div>
+        ))}
+        {items.map(b => (
+          <div key={b.id} style={{ position: "absolute", top: top(b.s), height: Math.max((b.e - b.s) * PX, 14), left: 44, right: 0, background: "var(--charcoal)", color: "var(--cream)", opacity: b.current ? .3 : 1, fontSize: 11, padding: "1px 6px", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", borderBottom: "1px solid var(--warm-white)" }}>
+            {fmt(b.s)}–{fmt(b.e)} · {b.label}{b.current ? " (current)" : ""}
+          </div>
+        ))}
+        {proposed && (
+          <div style={{ position: "absolute", top: top(proposed.s), height: Math.max((proposed.e - proposed.s) * PX, 14), left: 44, right: 0, border: "2px dashed var(--gold)", fontSize: 11, color: "var(--gold)", fontWeight: 600, padding: "0 6px", textAlign: "right" }}>New</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // STAFF BOOKING FORM
 // ============================================================
@@ -740,7 +800,8 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                     <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
                                             Manual time — working hours aren't checked. {totalDuration} min from the time you set.
                     </div>
-                    <ClashWarning dayBookings={dayBookings} time={time} duration={totalDuration} />
+                                        <ClashWarning dayBookings={dayBookings} time={time} duration={totalDuration} />
+                    <DayTimeline pracId={prac?.id} date={date} token={token} dayBookings={dayBookings} time={time} duration={totalDuration} />
                   </div>
                 ) : slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading times...</div>
@@ -1434,7 +1495,8 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                         <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
                                                     Manual time — working hours aren't checked. {sheet.duration} min from the time you set.
                         </div>
-                        <ClashWarning dayBookings={editDayBookings} time={editTime} duration={sheet.duration} excludeId={sheet.id} />
+                                                <ClashWarning dayBookings={editDayBookings} time={editTime} duration={sheet.duration} excludeId={sheet.id} />
+                        <DayTimeline pracId={sheet.practitioner_id} date={editDate} token={token} dayBookings={editDayBookings} time={editTime} duration={sheet.duration} excludeId={sheet.id} />
                       </div>
                     ) : editSlotsLoading ? (
                       <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
