@@ -392,9 +392,50 @@ function WaitlistBookingForm({ prac, entry, token, onDone, onCancel }) {
 }
 
 // ============================================================
-// STAFF BOOKING FORM
+// CLASH WARNING (Custom time mode)
 // ============================================================
 
+// Confirmed bookings for one practitioner on one day. Only fetched while Custom time is on.
+function useDayBookings(pracId, date, token, enabled) {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    if (!enabled || !pracId || !date || IS_DEMO) { setRows([]); return; }
+    let cancelled = false;
+    supabase.query("bookings", {
+      select: "id,client_name,booking_time,duration",
+      filters: "&practitioner_id=eq." + pracId + "&booking_date=eq." + dateStr(date.year, date.month, date.day) + "&status=eq.confirmed",
+      token,
+    }).then(r => { if (!cancelled) setRows(r); })
+      .catch(e => { console.error(e); if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
+  }, [enabled, pracId, date, token]);
+  return rows;
+}
+
+// Warns (doesn't block) when time + duration overlaps an existing booking. Back-to-back is not a clash.
+function ClashWarning({ dayBookings, time, duration, excludeId }) {
+  if (!time) return null;
+  const toMins = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const fmt = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  const start = toMins(time);
+  const end = start + (duration || 0);
+  const clashes = dayBookings
+    .filter(b => b.id !== excludeId && b.booking_time)
+    .map(b => { const bs = toMins(b.booking_time.slice(0, 5)); return { ...b, bs, be: bs + (b.duration || 0) }; })
+    .filter(b => start < b.be && b.bs < end);
+  if (!clashes.length) return null;
+  return (
+    <div style={{ marginTop: 10, padding: "10px 12px", border: "1.5px solid var(--red)", fontSize: 12, color: "var(--red)", lineHeight: 1.6 }}>
+      <div style={{ fontWeight: 500 }}>Overlaps {clashes.length === 1 ? "a booking" : clashes.length + " bookings"}</div>
+      {clashes.map(c => <div key={c.id} style={{ fontWeight: 300 }}>{c.client_name} · {fmt(c.bs)}–{fmt(c.be)}</div>)}
+      <div style={{ fontWeight: 300, marginTop: 4 }}>You can still save if this is intentional.</div>
+    </div>
+  );
+}
+
+// ============================================================
+// STAFF BOOKING FORM
+// ============================================================
 function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   // stage: "service" | "addons" | "cart" | "date" | "details"
   const [stage, setStage] = useState("service");
@@ -422,7 +463,8 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
   const totalPrice = cart.reduce((s, it) => s + itemPrice(it), 0);
   const serviceTitle = cart.map(it => it.service.title + (it.addons.length ? " + " + it.addons.map(a => a.title).join(" + ") : "")).join(" + ");
 
-  const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30, 0);
+    const { slots, loading: slotsLoading } = useAvailableSlots(prac?.id, date, totalDuration, prac?.slot_interval || 30, 0);
+  const dayBookings = useDayBookings(prac?.id, date, token, manualTime);
 
   const [bookAvail, setBookAvail] = useState({ unavailable: new Set(), blocked: [], overrides: [] });
   useEffect(() => {
@@ -696,8 +738,9 @@ function StaffBookingForm({ prac, services, token, onDone, onCancel }) {
                     <input type="time" value={time || ""} onChange={e => setTime(e.target.value || null)}
                       style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", width: "100%" }} />
                     <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
-                      Manual time — availability and clashes aren't checked. {totalDuration} min from the time you set.
+                                            Manual time — working hours aren't checked. {totalDuration} min from the time you set.
                     </div>
+                    <ClashWarning dayBookings={dayBookings} time={time} duration={totalDuration} />
                   </div>
                 ) : slotsLoading ? (
                   <div style={{ color: "var(--warm-gray)", fontSize: 14, fontWeight: 300 }}>Loading times...</div>
@@ -840,8 +883,9 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
   const [savingDetails, setSavingDetails] = useState(false);
 
   const { slots: editSlots, loading: editSlotsLoading } = useAvailableSlots(
-    sheet?.practitioner_id, editDate, sheet?.duration, prac?.slot_interval || 30, 0
+        sheet?.practitioner_id, editDate, sheet?.duration, prac?.slot_interval || 30, 0
   );
+  const editDayBookings = useDayBookings(sheet?.practitioner_id, editDate, token, editManual);
 
   useEffect(() => {
     function calcNow() {
@@ -1388,8 +1432,9 @@ function WeekView({ bookings, loading, prac, token, blocks = [], onAddBooking, o
                         <input type="time" value={editTime || ""} onChange={e => setEditTime(e.target.value || null)}
                           style={{ padding: "12px 16px", border: "1.5px solid var(--border)", background: "var(--warm-white)", fontFamily: "'Outfit',sans-serif", fontSize: 15, outline: "none", width: "100%" }} />
                         <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 300, marginTop: 10, lineHeight: 1.6 }}>
-                          Manual time — availability and clashes aren't checked. {sheet.duration} min from the time you set.
+                                                    Manual time — working hours aren't checked. {sheet.duration} min from the time you set.
                         </div>
+                        <ClashWarning dayBookings={editDayBookings} time={editTime} duration={sheet.duration} excludeId={sheet.id} />
                       </div>
                     ) : editSlotsLoading ? (
                       <div style={{ color: "var(--warm-gray)", fontSize: 13, fontWeight: 300 }}>Loading times...</div>
